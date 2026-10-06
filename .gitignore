@@ -22,3 +22,6 @@ logs/
 
 painel-defesa-civil.zip
 .claude/
+
+test-results/
+playwright-report/

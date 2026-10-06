@@ -6,7 +6,8 @@ Painel editável do protocolo integrado de resposta da Defesa Civil (React + Vit
 
 - `pnpm install` — instala as dependências
 - `pnpm dev` — servidor de desenvolvimento
-- `pnpm test` — testes automáticos
+- `pnpm test` — testes automáticos (componentes, rápidos)
+- `pnpm e2e` — testes no navegador real (Playwright): arrastar, exportar, impressão, celular e acessibilidade; usa o Chrome instalado
 - `pnpm build` — gera a pasta `dist/`
 
 No painel, **Editar painel** libera textos, imagens, cores, fontes, formas e posições.

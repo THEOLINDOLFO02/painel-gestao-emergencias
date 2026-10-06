@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import App from "./App";
+import { TEMPLATES } from "./editor/templates";
 
 const button = (name: string | RegExp) => screen.getByRole("button", { name });
 
@@ -355,6 +356,188 @@ describe("versões do projeto", () => {
     await openVersions();
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
+
+describe("modelos", () => {
+  it("todo texto dos modelos existe no painel original", () => {
+    render(<App />);
+    for (const template of TEMPLATES) {
+      for (const original of Object.keys(template.texts)) {
+        expect(
+          screen.getAllByText(original).length,
+          `${template.name}: "${original}"`,
+        ).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("aplica um modelo e permite desfazer", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<App />);
+    await userEvent.click(button("MODELOS"));
+    const dialog = within(screen.getByRole("dialog", { name: "Modelos" }));
+    await userEvent.click(
+      dialog.getByRole("button", { name: "Aplicar Alagamento e enchente" }),
+    );
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByText("PONTOS DE ALAGAMENTO")).toBeInTheDocument();
+    expect(screen.getByText("ENCHENTE E INUNDAÇÃO")).toBeInTheDocument();
+    expect(screen.queryByText("MAPA DE RISCO")).toBeNull();
+    expect(document.documentElement.style.getPropertyValue("--orange")).toBe(
+      "#3aa0ff",
+    );
+
+    await userEvent.click(button("DESFAZER"));
+    expect(screen.getByText("MAPA DE RISCO")).toBeInTheDocument();
+    expect(document.documentElement.style.getPropertyValue("--orange")).toBe(
+      "#ff8a24",
+    );
+  });
+
+  it("o modelo Padrão restaura os textos originais", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<App />);
+    for (const name of ["Aplicar Deslizamento de encosta", "Aplicar Padrão"]) {
+      await userEvent.click(button("MODELOS"));
+      await userEvent.click(button(name));
+    }
+    expect(screen.getByText("MAPA DE RISCO")).toBeInTheDocument();
+    expect(document.documentElement.style.getPropertyValue("--orange")).toBe(
+      "#ff8a24",
+    );
+  });
+});
+
+describe("aviso de contraste", () => {
+  it("avisa quando texto e fundo ficam parecidos e some ao corrigir", async () => {
+    render(<App />);
+    await enterEditMode();
+    const colors = panelSection("CORES");
+    expect(screen.queryByText(/contraste/)).toBeNull();
+
+    fireEvent.change(colors.getByLabelText("Texto"), {
+      target: { value: "#0a121c" },
+    });
+    expect(
+      await screen.findByText(/Texto sobre o fundo: contraste/),
+    ).toBeInTheDocument();
+
+    fireEvent.change(colors.getByLabelText("Texto"), {
+      target: { value: "#ffffff" },
+    });
+    await waitFor(() => expect(screen.queryByText(/contraste/)).toBeNull());
+  });
+});
+
+describe("redimensionar blocos", () => {
+  const widthOf = (selector: string) =>
+    (document.querySelector(selector)!.parentElement as HTMLElement).style.width;
+
+  it("redimensiona pelo teclado, restaura o tamanho e mantém após recarregar", async () => {
+    const { unmount } = render(<App />);
+    await enterEditMode();
+    await userEvent.click(
+      document.querySelector(".triage-card--small") as HTMLElement,
+    );
+
+    const handle = screen.getByRole("button", { name: /Redimensionar bloco/ });
+    fireEvent.keyDown(handle, { key: "ArrowRight", shiftKey: true });
+    // O jsdom não calcula layout: parte de 0 px e respeita o mínimo de 48 px.
+    expect(widthOf(".triage-card--small")).toBe("48px");
+    expect(window.localStorage.getItem("defesa-civil-sizes")).toContain(
+      "triage-small-card",
+    );
+
+    unmount();
+    render(<App />);
+    expect(widthOf(".triage-card--small")).toBe("48px");
+
+    await enterEditMode();
+    await userEvent.click(
+      document.querySelector(".triage-card--small") as HTMLElement,
+    );
+    await userEvent.click(button("Restaurar tamanho"));
+    expect(widthOf(".triage-card--small")).toBe("");
+  });
+
+  it("Restaurar layout volta posições e tamanhos ao padrão", async () => {
+    render(<App />);
+    await enterEditMode();
+    await userEvent.click(
+      document.querySelector(".triage-card--large") as HTMLElement,
+    );
+    fireEvent.keyDown(
+      screen.getByRole("button", { name: /Redimensionar bloco/ }),
+      { key: "ArrowDown" },
+    );
+    expect(window.localStorage.getItem("defesa-civil-sizes")).toContain(
+      "triage-large-card",
+    );
+
+    await userEvent.click(button("RESTAURAR LAYOUT"));
+    expect(window.localStorage.getItem("defesa-civil-sizes")).toBe("{}");
+  });
+});
+
+describe("enquadramento de fotos", () => {
+  const png =
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+
+  const openWithImage = async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    pickFile(
+      new File(
+        [
+          JSON.stringify({
+            app: "painel-defesa-civil",
+            images: { "monitor-map": png },
+          }),
+        ],
+        "p.json",
+      ),
+    );
+    render(<App />);
+    await userEvent.click(button("ABRIR PROJETO"));
+    await waitFor(() =>
+      expect(document.querySelectorAll(".uploaded-image")).toHaveLength(1),
+    );
+    await enterEditMode();
+  };
+
+  it("ajusta o zoom pelo painel e guarda o enquadramento", async () => {
+    await openWithImage();
+    expect(screen.getByText(/clique em ENQUADRAR/)).toBeInTheDocument();
+
+    await userEvent.click(button("ENQUADRAR"));
+    expect(button("CONCLUIR")).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.change(screen.getByLabelText("Zoom da foto"), {
+      target: { value: "200" },
+    });
+    const img = document.querySelector(".uploaded-image") as HTMLElement;
+    expect(img.style.transform).toBe("translate(0%, 0%) scale(2)");
+    expect(window.localStorage.getItem("defesa-civil-frames")).toContain(
+      "monitor-map",
+    );
+
+    fireEvent.change(screen.getByLabelText("Posição horizontal da foto"), {
+      target: { value: "50" },
+    });
+    expect(img.style.transform).toBe("translate(50%, 0%) scale(2)");
+
+    await userEvent.click(button("Restaurar enquadramento"));
+    expect(img.style.transform).toBe("");
+    expect(window.localStorage.getItem("defesa-civil-frames")).toBe("{}");
+  });
+
+  it("clicar em Enquadrar não abre o seletor de arquivos", async () => {
+    await openWithImage();
+    const picker = vi.spyOn(HTMLInputElement.prototype, "click");
+    picker.mockClear(); // o spy já contava a abertura do projeto
+    await userEvent.click(button("ENQUADRAR"));
+    expect(picker).not.toHaveBeenCalled();
   });
 });
 

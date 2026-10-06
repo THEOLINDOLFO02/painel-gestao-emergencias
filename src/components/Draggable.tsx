@@ -9,6 +9,7 @@ import {
 import { type Position, useEditor } from "../editor/context";
 
 const GRID = 4;
+const MIN_SIZE = 48;
 
 export default function Draggable({
   id,
@@ -22,6 +23,10 @@ export default function Draggable({
   const editor = useEditor();
   const position = editor.positions[id] ?? { x: 0, y: 0 };
   const blockStyle = editor.blockStyles[id];
+  const size = editor.sizes[id];
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const resizeStart = useRef({ pointerX: 0, pointerY: 0, w: 0, h: 0 });
+  const [resizing, setResizing] = useState(false);
   const [dragging, setDragging] = useState(false);
   const dragStart = useRef({ pointerX: 0, pointerY: 0, x: 0, y: 0 });
 
@@ -64,8 +69,51 @@ export default function Draggable({
     });
   };
 
-  const wrapperStyle: CSSProperties & Record<string, string | undefined> = {
+  const currentSize = () => {
+    const rect = wrapperRef.current?.getBoundingClientRect();
+    return { w: rect?.width ?? 0, h: rect?.height ?? 0 };
+  };
+
+  const startResize = (event: PointerEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const { w, h } = currentSize();
+    resizeStart.current = { pointerX: event.clientX, pointerY: event.clientY, w, h };
+    setResizing(true);
+  };
+
+  const moveResize = (event: PointerEvent<HTMLElement>) => {
+    if (!resizing) return;
+    const start = resizeStart.current;
+    editor.setSize(id, {
+      w: Math.max(MIN_SIZE, Math.round(start.w + event.clientX - start.pointerX)),
+      h: Math.max(MIN_SIZE, Math.round(start.h + event.clientY - start.pointerY)),
+    });
+  };
+
+  const resizeWithKeyboard = (event: KeyboardEvent<HTMLElement>) => {
+    const steps: Record<string, [number, number]> = {
+      ArrowLeft: [-1, 0],
+      ArrowRight: [1, 0],
+      ArrowUp: [0, -1],
+      ArrowDown: [0, 1],
+    };
+    const step = steps[event.key];
+    if (!step) return;
+    event.preventDefault();
+    const distance = event.shiftKey ? 20 : 4;
+    const { w, h } = currentSize();
+    editor.setSize(id, {
+      w: Math.max(MIN_SIZE, Math.round(w + step[0] * distance)),
+      h: Math.max(MIN_SIZE, Math.round(h + step[1] * distance)),
+    });
+  };
+
+  const wrapperStyle: CSSProperties & Record<string, string | number | undefined> = {
     transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
+    width: size?.w,
+    height: size?.h,
     "--block-bg": blockStyle?.bg,
     "--orange": blockStyle?.accent,
     "--orange-soft": blockStyle?.accent
@@ -79,7 +127,8 @@ export default function Draggable({
 
   return (
     <div
-      className={`draggable-wrapper ${dragging ? "is-dragging" : ""} ${blockStyle?.bg ? "has-block-bg" : ""} ${editor.editMode ? "is-block-selectable" : ""} ${selected ? "is-block-selected" : ""} ${className}`}
+      ref={wrapperRef}
+      className={`draggable-wrapper ${dragging || resizing ? "is-dragging" : ""} ${blockStyle?.bg ? "has-block-bg" : ""} ${editor.editMode ? "is-block-selectable" : ""} ${selected ? "is-block-selected" : ""} ${className}`}
       style={wrapperStyle}
       onClick={(event) => {
         // Só o bloco mais interno clicado é selecionado.
@@ -109,6 +158,19 @@ export default function Draggable({
           <span />
           <span />
         </button>
+      )}
+      {selected && (
+        <button
+          type="button"
+          className="resize-handle"
+          aria-label="Redimensionar bloco (setas do teclado, Shift para passos maiores)"
+          title="Arraste para redimensionar • Setas para ajuste fino"
+          onPointerDown={startResize}
+          onPointerMove={moveResize}
+          onPointerUp={() => setResizing(false)}
+          onPointerCancel={() => setResizing(false)}
+          onKeyDown={resizeWithKeyboard}
+        />
       )}
       {children}
     </div>

@@ -1,5 +1,6 @@
-import type { KeyboardEvent } from "react";
+import { type KeyboardEvent, type PointerEvent, useRef } from "react";
 import { useEditor } from "../editor/context";
+import { clampFrame, DEFAULT_FRAME, frameTransform } from "../editor/frame";
 import { pickFile } from "../editor/project";
 import { compressImage } from "../editor/storage";
 
@@ -14,36 +15,97 @@ export default function ImagePlaceholder({
   compact?: boolean;
   className?: string;
 }) {
-  const { editMode, images, setImage } = useEditor();
+  const { editMode, images, setImage, frames, setFrame, selectedImage, selectImage } =
+    useEditor();
   const image = images[id];
+  const frame = frames[id];
+  const framing = editMode && !!image && selectedImage === id;
+  const pan = useRef<{
+    pointerX: number;
+    pointerY: number;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
 
-  const selectImage = () => {
+  const selectFile = () => {
     if (!editMode) return;
     pickFile("image/png,image/jpeg,image/webp", (file) => {
       compressImage(file)
-        .then((dataUrl) => setImage(id, dataUrl))
+        .then((dataUrl) => {
+          setImage(id, dataUrl);
+          setFrame(id); // foto nova começa sem enquadramento
+        })
         .catch(() => window.alert("Não foi possível carregar a imagem."));
     });
   };
 
+  const handleClick = () => {
+    // Enquadrando, o clique não abre o seletor de arquivos.
+    if (!framing) selectFile();
+  };
+
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget) return;
     if (editMode && (event.key === "Enter" || event.key === " ")) {
       event.preventDefault();
-      selectImage();
+      handleClick();
     }
   };
 
+  const startPan = (event: PointerEvent<HTMLElement>) => {
+    if (!framing) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const current = frame ?? DEFAULT_FRAME;
+    pan.current = {
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      x: current.x,
+      y: current.y,
+      width: rect.width,
+      height: rect.height,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const movePan = (event: PointerEvent<HTMLElement>) => {
+    const start = pan.current;
+    if (!start) return;
+    const current = frame ?? DEFAULT_FRAME;
+    setFrame(
+      id,
+      clampFrame({
+        zoom: current.zoom,
+        x: start.x + ((event.clientX - start.pointerX) / start.width) * 100,
+        y: start.y + ((event.clientY - start.pointerY) / start.height) * 100,
+      }),
+    );
+  };
+
+  const stop = (event: { stopPropagation: () => void }) => event.stopPropagation();
+
   return (
     <div
-      className={`image-placeholder ${image ? "image-placeholder--filled" : ""} ${editMode ? "image-placeholder--editable" : ""} ${compact ? "image-placeholder--compact" : ""} ${className}`}
-      role={editMode ? "button" : "img"}
+      className={`image-placeholder ${image ? "image-placeholder--filled" : ""} ${editMode ? "image-placeholder--editable" : ""} ${framing ? "image-placeholder--framing" : ""} ${compact ? "image-placeholder--compact" : ""} ${className}`}
+      role={!editMode ? "img" : image ? "group" : "button"}
       aria-label={`Espaço reservado para ${label}`}
-      tabIndex={editMode ? 0 : -1}
-      onClick={selectImage}
+      tabIndex={editMode && !image ? 0 : -1}
+      onClick={handleClick}
       onKeyDown={handleKeyDown}
+      onPointerDown={startPan}
+      onPointerMove={movePan}
+      onPointerUp={() => (pan.current = null)}
+      onPointerCancel={() => (pan.current = null)}
     >
       {image ? (
-        <img src={image} alt={label} className="uploaded-image" />
+        <img
+          src={image}
+          alt={label}
+          className="uploaded-image"
+          style={{ transform: frameTransform(frame) }}
+          draggable={false}
+        />
       ) : (
         <>
           <svg
@@ -60,24 +122,42 @@ export default function ImagePlaceholder({
       )}
       {editMode && image && (
         <div className="image-actions">
-          <span>CLIQUE PARA TROCAR</span>
-          <span
-            className="remove-image"
-            role="button"
-            tabIndex={0}
+          <button
+            type="button"
+            className="image-action"
+            onPointerDown={stop}
+            onClick={(event) => {
+              event.stopPropagation();
+              selectFile();
+            }}
+          >
+            TROCAR
+          </button>
+          <button
+            type="button"
+            className="image-action"
+            aria-pressed={framing}
+            onPointerDown={stop}
+            onClick={(event) => {
+              event.stopPropagation();
+              selectImage(framing ? null : id);
+            }}
+          >
+            {framing ? "CONCLUIR" : "ENQUADRAR"}
+          </button>
+          <button
+            type="button"
+            className="image-action remove-image"
+            onPointerDown={stop}
             onClick={(event) => {
               event.stopPropagation();
               setImage(id);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.stopPropagation();
-                setImage(id);
-              }
+              setFrame(id);
+              selectImage(null);
             }}
           >
             REMOVER
-          </span>
+          </button>
         </div>
       )}
     </div>

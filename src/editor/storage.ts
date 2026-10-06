@@ -5,6 +5,8 @@ export const STORAGE_KEYS = {
   theme: "defesa-civil-theme",
   shapes: "defesa-civil-shapes",
   blocks: "defesa-civil-blocks",
+  sizes: "defesa-civil-sizes",
+  frames: "defesa-civil-frames",
 } as const;
 
 export function loadStored<T>(key: string, fallback: T): T {

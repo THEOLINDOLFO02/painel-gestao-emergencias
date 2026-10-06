@@ -1,5 +1,6 @@
 import { toJpeg, toPng } from "html-to-image";
 import { useEffect, useRef, useState } from "react";
+import TemplatesDialog from "./components/TemplatesDialog";
 import ToolButton from "./components/ToolButton";
 import VersionsDialog from "./components/VersionsDialog";
 import {
@@ -16,8 +17,12 @@ import {
   blockLabel,
   EditorContext,
   type EditorState,
+  type Frame,
   type Position,
+  type Size,
 } from "./editor/context";
+import { DEFAULT_FRAME, isDefaultFrame } from "./editor/frame";
+import type { Template } from "./editor/templates";
 import {
   downloadProject,
   pickFile,
@@ -54,6 +59,7 @@ export default function App() {
   const [editMode, setEditMode] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
 
   const [texts, setTexts] = useState(() =>
     loadStored<Record<string, string>>(STORAGE_KEYS.texts, {}),
@@ -72,6 +78,13 @@ export default function App() {
   const [blockStyles, setBlockStyles] = useState(() =>
     loadStored<Record<string, BlockStyle>>(STORAGE_KEYS.blocks, {}),
   );
+  const [sizes, setSizes] = useState(() =>
+    loadStored<Record<string, Size>>(STORAGE_KEYS.sizes, {}),
+  );
+  const [frames, setFrames] = useState(() =>
+    loadStored<Record<string, Frame>>(STORAGE_KEYS.frames, {}),
+  );
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedShape, setSelectedShape] = useState<string | null>(null);
   const [selectedBlock, setSelectedBlock] = useState<string | null>(null);
 
@@ -86,6 +99,8 @@ export default function App() {
   usePersist(STORAGE_KEYS.theme, theme);
   usePersist(STORAGE_KEYS.shapes, shapes);
   usePersist(STORAGE_KEYS.blocks, blockStyles);
+  usePersist(STORAGE_KEYS.sizes, sizes);
+  usePersist(STORAGE_KEYS.frames, frames);
 
   // ---- Projeto (tudo o que o usuário pode alterar) ----
   const project: ProjectData = {
@@ -95,6 +110,8 @@ export default function App() {
     blockStyles,
     shapes,
     positions,
+    sizes,
+    frames,
   };
 
   const applyProject = (data: ProjectData) => {
@@ -104,8 +121,17 @@ export default function App() {
     setBlockStyles(data.blockStyles);
     setShapes(data.shapes);
     setPositions(data.positions);
+    // Versões salvas antes destes recursos não trazem tamanhos nem enquadramentos.
+    setSizes(data.sizes ?? {});
+    setFrames(data.frames ?? {});
     setSelectedShape(null);
     setSelectedBlock(null);
+    setSelectedImage(null);
+  };
+
+  const applyTemplate = (template: Template) => {
+    setTexts(template.texts);
+    setTheme((current) => ({ ...current, ...template.theme }));
   };
 
   const history = useHistory(project, applyProject);
@@ -147,6 +173,7 @@ export default function App() {
     if (!editMode) {
       setSelectedShape(null);
       setSelectedBlock(null);
+      setSelectedImage(null);
     }
   }, [editMode]);
 
@@ -263,11 +290,36 @@ export default function App() {
     positions,
     setPosition: (id, position) =>
       setPositions((current) => ({ ...current, [id]: position })),
+    sizes,
+    setSize: (id, size) =>
+      setSizes((current) => {
+        const next = { ...current };
+        if (size) next[id] = size;
+        else delete next[id];
+        return next;
+      }),
+    frames,
+    setFrame: (id, frame) =>
+      setFrames((current) => {
+        const next = { ...current };
+        if (frame && !isDefaultFrame(frame)) next[id] = frame;
+        else delete next[id];
+        return next;
+      }),
+    selectedImage,
+    selectImage: (id) => {
+      setSelectedImage(id);
+      if (id) {
+        setSelectedBlock(null);
+        setSelectedShape(null);
+      }
+    },
     blockStyles,
     selectedBlock,
     selectBlock: (id) => {
       setSelectedBlock(id);
       setSelectedShape(null);
+      setSelectedImage(null);
     },
   };
 
@@ -277,10 +329,13 @@ export default function App() {
         className="dashboard-shell"
         onPointerDown={(event) => {
           if (
-            !(event.target as HTMLElement).closest(".shape-item, .design-panel")
+            !(event.target as HTMLElement).closest(
+              ".shape-item, .design-panel, .image-placeholder--framing",
+            )
           ) {
             setSelectedShape(null);
             setSelectedBlock(null);
+            setSelectedImage(null);
           }
         }}
       >
@@ -316,14 +371,18 @@ export default function App() {
             <ToolButton onClick={() => window.print()}>PDF</ToolButton>
             <ToolButton
               className="tool-control--reset"
-              onClick={() => setPositions({})}
+              onClick={() => {
+                setPositions({});
+                setSizes({});
+              }}
             >
-              RESTAURAR POSIÇÕES
+              RESTAURAR LAYOUT
             </ToolButton>
             <ToolButton onClick={() => downloadProject(project)}>
               SALVAR PROJETO
             </ToolButton>
             <ToolButton onClick={openProject}>ABRIR PROJETO</ToolButton>
+            <ToolButton onClick={() => setTemplatesOpen(true)}>MODELOS</ToolButton>
             <ToolButton onClick={() => setVersionsOpen(true)}>VERSÕES</ToolButton>
             <ToolButton className="tool-control--reset" onClick={resetContent}>
               LIMPAR CONTEÚDO
@@ -357,6 +416,7 @@ export default function App() {
               onSelect={(id) => {
                 setSelectedShape(id);
                 setSelectedBlock(null);
+                setSelectedImage(null);
               }}
               onChange={updateShape}
             />
@@ -378,6 +438,13 @@ export default function App() {
           />
         )}
 
+        {templatesOpen && (
+          <TemplatesDialog
+            onApply={applyTemplate}
+            onClose={() => setTemplatesOpen(false)}
+          />
+        )}
+
         {editMode && (
           <DesignPanel
             theme={theme}
@@ -395,6 +462,18 @@ export default function App() {
             blockStyle={selectedBlock ? blockStyles[selectedBlock] : undefined}
             onBlockChange={patchBlock}
             onBlockReset={resetBlock}
+            blockSize={selectedBlock ? sizes[selectedBlock] : undefined}
+            onBlockSizeReset={() =>
+              selectedBlock && editor.setSize(selectedBlock)
+            }
+            imageSelected={!!selectedImage}
+            imageFrame={selectedImage ? frames[selectedImage] : undefined}
+            onFrameChange={(frame) =>
+              selectedImage && editor.setFrame(selectedImage, frame)
+            }
+            onFrameReset={() =>
+              selectedImage && editor.setFrame(selectedImage, DEFAULT_FRAME)
+            }
           />
         )}
       </main>

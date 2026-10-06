@@ -6,6 +6,19 @@ export type Position = {
   y: number;
 };
 
+// Tamanho manual de um bloco, em px (ausente = tamanho automático).
+export type Size = {
+  w?: number;
+  h?: number;
+};
+
+// Enquadramento de uma foto: zoom (1 = ajustada) e deslocamento em % da imagem.
+export type Frame = {
+  zoom: number;
+  x: number;
+  y: number;
+};
+
 // Estado de edição compartilhado pelos componentes do painel.
 export type EditorState = {
   editMode: boolean;
@@ -16,6 +29,12 @@ export type EditorState = {
   setImage: (id: string, image?: string) => void;
   positions: Record<string, Position>;
   setPosition: (id: string, position: Position) => void;
+  sizes: Record<string, Size>;
+  setSize: (id: string, size?: Size) => void;
+  frames: Record<string, Frame>;
+  setFrame: (id: string, frame?: Frame) => void;
+  selectedImage: string | null;
+  selectImage: (id: string | null) => void;
   blockStyles: Record<string, BlockStyle>;
   selectedBlock: string | null;
   selectBlock: (id: string) => void;
@@ -30,6 +49,12 @@ export const EditorContext = createContext<EditorState>({
   setImage: () => {},
   positions: {},
   setPosition: () => {},
+  sizes: {},
+  setSize: () => {},
+  frames: {},
+  setFrame: () => {},
+  selectedImage: null,
+  selectImage: () => {},
   blockStyles: {},
   selectedBlock: null,
   selectBlock: () => {},

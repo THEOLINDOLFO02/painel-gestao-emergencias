@@ -106,6 +106,105 @@ test.describe("edição com mouse e teclado reais", () => {
   });
 });
 
+test.describe("redimensionar, enquadrar e modelos", () => {
+  const png = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "base64",
+  );
+
+  async function uploadFirstImage(page: import("@playwright/test").Page) {
+    const chooser = page.waitForEvent("filechooser");
+    await page.locator(".image-placeholder--editable").first().click();
+    await (await chooser).setFiles({ name: "foto.png", mimeType: "image/png", buffer: png });
+    await expect(page.locator(".uploaded-image")).toHaveCount(1);
+  }
+
+  test("redimensiona um bloco arrastando o canto e mantém após recarregar", async ({
+    page,
+  }) => {
+    await openPanel(page);
+    await enterEditMode(page);
+
+    // Bloco da coluna esquerda: o painel de design cobre o canto dos da direita.
+    const card = page.locator(".triage-card--small");
+    const wrapper = card.locator("xpath=..");
+    await card.locator(".triage-heading").click();
+    const before = (await wrapper.boundingBox())!;
+
+    await page.locator(".resize-handle").scrollIntoViewIfNeeded();
+    const handle = (await page.locator(".resize-handle").boundingBox())!;
+    const corner = { x: handle.x + handle.width / 2, y: handle.y + handle.height / 2 };
+    await dragBetween(page, corner, { x: corner.x - 60, y: corner.y + 40 });
+
+    const after = (await wrapper.boundingBox())!;
+    expect(Math.round(before.width - after.width)).toBe(60);
+    expect(Math.round(after.height - before.height)).toBe(40);
+
+    await page.reload();
+    const reloaded = (await wrapper.boundingBox())!;
+    expect(Math.round(reloaded.width)).toBe(Math.round(after.width));
+
+    // Restaurar tamanho
+    await enterEditMode(page);
+    await card.locator(".triage-heading").click();
+    await page.getByRole("button", { name: "Restaurar tamanho" }).click();
+    const restored = (await wrapper.boundingBox())!;
+    expect(Math.round(restored.width)).toBe(Math.round(before.width));
+  });
+
+  test("enquadra uma foto: zoom pelo painel e arrasto com o mouse", async ({ page }) => {
+    await openPanel(page);
+    await enterEditMode(page);
+    await uploadFirstImage(page);
+
+    await page.getByRole("button", { name: "ENQUADRAR" }).click();
+    await page.getByLabel("Zoom da foto").fill("200");
+    const img = page.locator(".uploaded-image");
+    await expect(img).toHaveCSS("transform", /matrix\(2, 0, 0, 2/);
+
+    const box = (await page.locator(".image-placeholder--framing").boundingBox())!;
+    const start = { x: box.x + box.width / 2, y: box.y + box.height / 3 };
+    await dragBetween(page, start, { x: start.x - box.width / 4, y: start.y });
+    const stored = await page.evaluate(() =>
+      JSON.parse(localStorage.getItem("defesa-civil-frames") ?? "{}"),
+    );
+    const frame = Object.values(stored)[0] as { zoom: number; x: number; y: number };
+    expect(frame.zoom).toBe(2);
+    expect(frame.x).toBeLessThan(-20); // arrastou ~1/4 da largura para a esquerda
+    expect(frame.x).toBeGreaterThanOrEqual(-50); // sem deixar borda vazia
+
+    await page.reload();
+    await expect(page.locator(".uploaded-image")).toHaveCSS("transform", /matrix\(2, 0, 0, 2/);
+  });
+
+  test("aplica o modelo Alagamento e depois volta ao Padrão", async ({ page }) => {
+    page.on("dialog", (dialog) => dialog.accept());
+    await openPanel(page);
+    await tool(page, "MODELOS").click();
+    await page.getByRole("button", { name: "Aplicar Alagamento e enchente" }).click();
+
+    await expect(page.getByText("PONTOS DE ALAGAMENTO", { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { level: 1, name: /ALAGAMENTOS E ENCHENTES/ }),
+    ).toBeVisible();
+
+    await tool(page, "MODELOS").click();
+    await page.getByRole("button", { name: "Aplicar Padrão" }).click();
+    await expect(page.getByText("MAPA DE RISCO", { exact: true })).toBeVisible();
+  });
+
+  test("mostra o aviso de contraste ao escolher cores parecidas", async ({ page }) => {
+    await openPanel(page);
+    await enterEditMode(page);
+    await expect(page.locator(".contrast-warning")).toHaveCount(0);
+
+    await page.locator(".design-panel").getByLabel("Texto", { exact: true }).first().fill("#0a1018");
+    await expect(page.locator(".contrast-warning").first()).toContainText("contraste");
+    await page.locator(".design-panel").getByLabel("Texto", { exact: true }).first().fill("#ffffff");
+    await expect(page.locator(".contrast-warning")).toHaveCount(0);
+  });
+});
+
 test.describe("imagens", () => {
   test("envia uma imagem pelo seletor de arquivos e a mantém após recarregar", async ({
     page,

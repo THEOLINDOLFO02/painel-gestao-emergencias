@@ -5,6 +5,9 @@ import {
   useRef,
   useState,
 } from "react";
+import { contrastWarnings, formatRatio, MIN_CONTRAST } from "./editor/contrast";
+import type { Frame, Size } from "./editor/context";
+import { clampFrame, DEFAULT_FRAME, isDefaultFrame, MAX_ZOOM, maxPan } from "./editor/frame";
 
 export type Theme = {
   bg: string;
@@ -212,6 +215,23 @@ export function ShapeItem({
   );
 }
 
+function ContrastNotice({
+  warnings,
+}: {
+  warnings: { label: string; ratio: number }[];
+}) {
+  return (
+    <div aria-live="polite">
+      {warnings.map(({ label, ratio }) => (
+        <p key={label} className="contrast-warning">
+          ⚠ {label}: contraste {formatRatio(ratio)} (mínimo {formatRatio(MIN_CONTRAST)}).
+          Pode ficar difícil de ler.
+        </p>
+      ))}
+    </div>
+  );
+}
+
 export function DesignPanel({
   theme,
   onThemeChange,
@@ -224,6 +244,12 @@ export function DesignPanel({
   blockStyle,
   onBlockChange,
   onBlockReset,
+  blockSize,
+  onBlockSizeReset,
+  imageSelected,
+  imageFrame,
+  onFrameChange,
+  onFrameReset,
 }: {
   theme: Theme;
   onThemeChange: (patch: Partial<Theme>) => void;
@@ -236,7 +262,32 @@ export function DesignPanel({
   blockStyle?: BlockStyle;
   onBlockChange: (patch: BlockStyle) => void;
   onBlockReset: () => void;
+  blockSize?: Size;
+  onBlockSizeReset: () => void;
+  imageSelected: boolean;
+  imageFrame?: Frame;
+  onFrameChange: (frame: Frame) => void;
+  onFrameReset: () => void;
 }) {
+  const themeWarnings = contrastWarnings([
+    { label: "Texto sobre o fundo", foreground: theme.text, background: theme.bg },
+    { label: "Destaque sobre o fundo", foreground: theme.accent, background: theme.bg },
+    { label: "Secundária sobre o fundo", foreground: theme.secondary, background: theme.bg },
+  ]);
+  const blockBackground = blockStyle?.bg ?? theme.bg;
+  const blockWarnings = contrastWarnings([
+    {
+      label: "Texto sobre o fundo do bloco",
+      foreground: blockStyle?.text ?? theme.text,
+      background: blockBackground,
+    },
+    {
+      label: "Destaque sobre o fundo do bloco",
+      foreground: blockStyle?.accent ?? theme.accent,
+      background: blockBackground,
+    },
+  ]);
+  const frame = imageFrame ?? DEFAULT_FRAME;
   const colors: { key: "bg" | "accent" | "secondary" | "text"; label: string }[] =
     [
       { key: "bg", label: "Fundo" },
@@ -287,6 +338,7 @@ export function DesignPanel({
             />
           </label>
         ))}
+        <ContrastNotice warnings={themeWarnings} />
       </section>
       <section>
         <h3>FONTES</h3>
@@ -337,6 +389,24 @@ export function DesignPanel({
                 />
               </label>
             ))}
+            <ContrastNotice warnings={blockWarnings} />
+            {blockSize && (
+              <label>
+                Tamanho
+                <span>
+                  {blockSize.w ? `${blockSize.w}` : "auto"} ×{" "}
+                  {blockSize.h ? `${blockSize.h}` : "auto"} px
+                </span>
+              </label>
+            )}
+            <span style={{ color: "var(--muted)" }}>
+              Arraste o quadrado ciano no canto do bloco para redimensionar.
+            </span>
+            {blockSize && (
+              <button className="panel-button" onClick={onBlockSizeReset}>
+                Restaurar tamanho
+              </button>
+            )}
             <button className="panel-button" onClick={onBlockReset}>
               Remover personalização
             </button>
@@ -345,6 +415,82 @@ export function DesignPanel({
           <span style={{ color: "var(--muted)" }}>
             Clique em um bloco do painel (fase, cartão ou cabeçalho) para mudar
             as cores só dele.
+          </span>
+        )}
+      </section>
+      <section>
+        <h3>FOTO SELECIONADA</h3>
+        {imageSelected ? (
+          <>
+            <label>
+              Zoom
+              <input
+                type="range"
+                min={100}
+                max={MAX_ZOOM * 100}
+                step={5}
+                aria-label="Zoom da foto"
+                value={Math.round(frame.zoom * 100)}
+                onChange={(event) =>
+                  onFrameChange(clampFrame({ ...frame, zoom: Number(event.target.value) / 100 }))
+                }
+              />
+            </label>
+            <label>
+              Horizontal
+              <input
+                type="range"
+                min={-50}
+                max={50}
+                step={1}
+                aria-label="Posição horizontal da foto"
+                disabled={frame.zoom === 1}
+                value={Math.round((frame.x / Math.max(1, maxPan(frame.zoom))) * 50)}
+                onChange={(event) =>
+                  onFrameChange(
+                    clampFrame({
+                      ...frame,
+                      x: (Number(event.target.value) / 50) * maxPan(frame.zoom),
+                    }),
+                  )
+                }
+              />
+            </label>
+            <label>
+              Vertical
+              <input
+                type="range"
+                min={-50}
+                max={50}
+                step={1}
+                aria-label="Posição vertical da foto"
+                disabled={frame.zoom === 1}
+                value={Math.round((frame.y / Math.max(1, maxPan(frame.zoom))) * 50)}
+                onChange={(event) =>
+                  onFrameChange(
+                    clampFrame({
+                      ...frame,
+                      y: (Number(event.target.value) / 50) * maxPan(frame.zoom),
+                    }),
+                  )
+                }
+              />
+            </label>
+            <span style={{ color: "var(--muted)" }}>
+              Você também pode arrastar a foto para reposicionar.
+            </span>
+            <button
+              className="panel-button"
+              disabled={isDefaultFrame(frame)}
+              onClick={onFrameReset}
+            >
+              Restaurar enquadramento
+            </button>
+          </>
+        ) : (
+          <span style={{ color: "var(--muted)" }}>
+            Em uma foto já inserida, clique em ENQUADRAR para ajustar zoom e
+            posição.
           </span>
         )}
       </section>

@@ -12,6 +12,9 @@ Painel editável do protocolo integrado de resposta da Defesa Civil (React + Vit
 
 No painel, **Editar painel** libera textos, imagens, cores, fontes, formas e posições.
 **Salvar projeto** baixa um `.json` com tudo; **Abrir projeto** o carrega de volta.
+Outros recursos: **Modelos** (Alagamento, Deslizamento, Padrão), **Versões** nomeadas do
+projeto, redimensionar blocos (quadrado ciano no canto do bloco selecionado), **Enquadrar**
+fotos (zoom e posição) e aviso de contraste ao escolher cores.
 As edições ficam no navegador (localStorage e IndexedDB) e não são compartilhadas
 entre pessoas ou computadores — para isso, use o arquivo `.json`.
 

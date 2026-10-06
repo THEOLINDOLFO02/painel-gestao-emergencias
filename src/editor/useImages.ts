@@ -9,19 +9,29 @@ type Images = Record<string, string>;
  * versão antiga, no localStorage, são migradas na primeira abertura.
  */
 export function useImages(onLoaded: (images: Images) => void) {
-  const [images, setImages] = useState<Images>({});
+  const [images, setImagesState] = useState<Images>({});
   const [ready, setReady] = useState(false);
   const loadedCallback = useRef(onLoaded);
   loadedCallback.current = onLoaded;
+  // Se a pessoa mudar as imagens antes do carregamento terminar (por exemplo,
+  // abrindo um projeto), o que ela fez vale mais do que o que estava salvo.
+  const touched = useRef(false);
+
+  const setImages: typeof setImagesState = (value) => {
+    touched.current = true;
+    setImagesState(value);
+  };
 
   useEffect(() => {
     const legacy = loadStored<Images>(STORAGE_KEYS.images, {});
     idbGet<Images>(STORAGE_KEYS.images)
       .catch(() => undefined)
       .then((stored) => {
-        const loaded = stored && Object.keys(stored).length ? stored : legacy;
-        loadedCallback.current(loaded);
-        setImages(loaded);
+        if (!touched.current) {
+          const loaded = stored && Object.keys(stored).length ? stored : legacy;
+          loadedCallback.current(loaded);
+          setImagesState(loaded);
+        }
         setReady(true);
       });
   }, []);

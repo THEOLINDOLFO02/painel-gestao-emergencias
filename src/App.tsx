@@ -1,6 +1,7 @@
 import { toJpeg, toPng } from "html-to-image";
 import { useEffect, useRef, useState } from "react";
 import ToolButton from "./components/ToolButton";
+import VersionsDialog from "./components/VersionsDialog";
 import {
   DEFAULT_THEME,
   DesignPanel,
@@ -52,6 +53,7 @@ export default function App() {
   const dashboardRef = useRef<HTMLDivElement>(null);
   const [editMode, setEditMode] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [versionsOpen, setVersionsOpen] = useState(false);
 
   const [texts, setTexts] = useState(() =>
     loadStored<Record<string, string>>(STORAGE_KEYS.texts, {}),
@@ -322,6 +324,7 @@ export default function App() {
               SALVAR PROJETO
             </ToolButton>
             <ToolButton onClick={openProject}>ABRIR PROJETO</ToolButton>
+            <ToolButton onClick={() => setVersionsOpen(true)}>VERSÕES</ToolButton>
             <ToolButton className="tool-control--reset" onClick={resetContent}>
               LIMPAR CONTEÚDO
             </ToolButton>
@@ -366,6 +369,14 @@ export default function App() {
             </span>
           </footer>
         </div>
+
+        {versionsOpen && (
+          <VersionsDialog
+            current={project}
+            onRestore={applyProject}
+            onClose={() => setVersionsOpen(false)}
+          />
+        )}
 
         {editMode && (
           <DesignPanel

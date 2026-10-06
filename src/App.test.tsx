@@ -293,6 +293,71 @@ describe("imagens", () => {
   });
 });
 
+describe("versões do projeto", () => {
+  const openVersions = async () => {
+    await userEvent.click(button("VERSÕES"));
+    return screen.getByRole("dialog", { name: "Versões do projeto" });
+  };
+
+  it("salva uma versão, altera o painel e restaura a versão", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<App />);
+    await enterEditMode();
+    editText("EM OPERAÇÃO", "EM ALERTA");
+
+    const dialog = within(await openVersions());
+    expect(dialog.getByText(/Nenhuma versão salva/)).toBeInTheDocument();
+    await userEvent.clear(dialog.getByLabelText("Nome da versão"));
+    await userEvent.type(dialog.getByLabelText("Nome da versão"), "Simulado");
+    await userEvent.click(dialog.getByRole("button", { name: "Salvar versão atual" }));
+    expect(await dialog.findByText("Simulado")).toBeInTheDocument();
+    await userEvent.click(dialog.getByRole("button", { name: "Fechar" }));
+
+    editText("EM ALERTA", "EM CRISE");
+    expect(screen.getByText("EM CRISE")).toBeInTheDocument();
+    // Deixa a edição virar um passo próprio do histórico (agrupa em 400 ms).
+    await new Promise((resolve) => setTimeout(resolve, 450));
+
+    const again = within(await openVersions());
+    await userEvent.click(again.getByRole("button", { name: "Restaurar Simulado" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByText("EM ALERTA")).toBeInTheDocument();
+    expect(screen.queryByText("EM CRISE")).toBeNull();
+
+    // A restauração também pode ser desfeita.
+    await userEvent.click(button("DESFAZER"));
+    expect(screen.getByText("EM CRISE")).toBeInTheDocument();
+  });
+
+  it("mantém as versões depois de recarregar e permite excluir", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const { unmount } = render(<App />);
+    let dialog = within(await openVersions());
+    await userEvent.click(dialog.getByRole("button", { name: "Salvar versão atual" }));
+    await waitFor(() =>
+      expect(dialog.getAllByRole("button", { name: /^Restaurar / })).toHaveLength(1),
+    );
+    unmount();
+
+    render(<App />);
+    dialog = within(await openVersions());
+    const restore = await dialog.findByRole("button", { name: /^Restaurar / });
+    expect(restore).toBeInTheDocument();
+
+    await userEvent.click(dialog.getByRole("button", { name: /^Excluir / }));
+    await waitFor(() =>
+      expect(dialog.getByText(/Nenhuma versão salva/)).toBeInTheDocument(),
+    );
+  });
+
+  it("fecha com Esc", async () => {
+    render(<App />);
+    await openVersions();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
+
 describe("tela pequena", () => {
   const narrow = (matches: boolean) =>
     Object.defineProperty(window, "matchMedia", {

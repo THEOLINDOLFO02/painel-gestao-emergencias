@@ -4,10 +4,10 @@ Painel editável do protocolo integrado de resposta da Defesa Civil (React + Vit
 
 ## Uso
 
-- `npm install` — instala as dependências
-- `npm run dev` — servidor de desenvolvimento
-- `npm test` — testes automáticos
-- `npm run build` — gera a pasta `dist/`
+- `pnpm install` — instala as dependências
+- `pnpm dev` — servidor de desenvolvimento
+- `pnpm test` — testes automáticos
+- `pnpm build` — gera a pasta `dist/`
 
 No painel, **Editar painel** libera textos, imagens, cores, fontes, formas e posições.
 **Salvar projeto** baixa um `.json` com tudo; **Abrir projeto** o carrega de volta.
@@ -17,7 +17,7 @@ entre pessoas ou computadores — para isso, use o arquivo `.json`.
 ## Publicar (site estático)
 
 ```bash
-FIGMA_PUBLIC_URL=. npm run build
+FIGMA_PUBLIC_URL=. pnpm build
 ```
 
 O build usa caminhos relativos, então a pasta `dist/` funciona em qualquer hospedagem

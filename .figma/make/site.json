@@ -1,0 +1,12 @@
+{
+  "title": "Painel de Gestão de Emergências",
+  "language": "pt-BR",
+  "description": "This dashboard application provides an integrated emergency management system for civil defense, featuring real-time monitoring, triage, and intervention tools in a user-friendly dark theme.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

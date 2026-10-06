@@ -1,4 +1,4 @@
-import type { Theme } from "../DesignTools";
+import type { Theme } from "./theme";
 
 // As chaves de `texts` são os textos originais do painel (ver EditableText).
 export type Template = {

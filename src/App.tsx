@@ -1,18 +1,12 @@
 import { toJpeg, toPng } from "html-to-image";
 import { useEffect, useRef, useState } from "react";
+import DesignPanel from "./components/DesignPanel";
+import ShapeItem from "./components/ShapeItem";
 import TemplatesDialog from "./components/TemplatesDialog";
 import ToolButton from "./components/ToolButton";
 import VersionsDialog from "./components/VersionsDialog";
-import {
-  DEFAULT_THEME,
-  DesignPanel,
-  isLineShape,
-  ShapeItem,
-  type BlockStyle,
-  type Shape,
-  type ShapeType,
-  type Theme,
-} from "./DesignTools";
+import { isLineShape, reorderShapes, type Shape, type ShapeType, type StackOp } from "./editor/shapes";
+import { type BlockStyle, DEFAULT_THEME, type Theme } from "./editor/theme";
 import {
   blockLabel,
   EditorContext,
@@ -84,6 +78,9 @@ export default function App() {
   const [frames, setFrames] = useState(() =>
     loadStored<Record<string, Frame>>(STORAGE_KEYS.frames, {}),
   );
+  const [stacks, setStacks] = useState(() =>
+    loadStored<Record<string, number>>(STORAGE_KEYS.stacks, {}),
+  );
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedShape, setSelectedShape] = useState<string | null>(null);
   const [selectedBlock, setSelectedBlock] = useState<string | null>(null);
@@ -101,6 +98,7 @@ export default function App() {
   usePersist(STORAGE_KEYS.blocks, blockStyles);
   usePersist(STORAGE_KEYS.sizes, sizes);
   usePersist(STORAGE_KEYS.frames, frames);
+  usePersist(STORAGE_KEYS.stacks, stacks);
 
   // ---- Projeto (tudo o que o usuário pode alterar) ----
   const project: ProjectData = {
@@ -112,6 +110,7 @@ export default function App() {
     positions,
     sizes,
     frames,
+    stacks,
   };
 
   const applyProject = (data: ProjectData) => {
@@ -124,6 +123,7 @@ export default function App() {
     // Versões salvas antes destes recursos não trazem tamanhos nem enquadramentos.
     setSizes(data.sizes ?? {});
     setFrames(data.frames ?? {});
+    setStacks(data.stacks ?? {});
     setSelectedShape(null);
     setSelectedBlock(null);
     setSelectedImage(null);
@@ -206,11 +206,20 @@ export default function App() {
     setSelectedShape(null);
   };
 
+  const stackShape = (id: string, op: StackOp) =>
+    setShapes((current) => reorderShapes(current, id, op));
+
+  const selectShape = (id: string) => {
+    setSelectedShape(id);
+    setSelectedBlock(null);
+    setSelectedImage(null);
+  };
+
   const addShape = (type: ShapeType) => {
     const top = dashboardRef.current?.getBoundingClientRect().top ?? 0;
     const line = isLineShape(type);
     const shape: Shape = {
-      id: `shape-${Date.now()}`,
+      id: `shape-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       type,
       x: 60,
       y: Math.max(40, Math.round(160 - top)),
@@ -306,6 +315,14 @@ export default function App() {
         else delete next[id];
         return next;
       }),
+    stacks,
+    setStack: (id, stack) =>
+      setStacks((current) => {
+        const next = { ...current };
+        if (stack) next[id] = stack;
+        else delete next[id];
+        return next;
+      }),
     selectedImage,
     selectImage: (id) => {
       setSelectedImage(id);
@@ -374,6 +391,7 @@ export default function App() {
               onClick={() => {
                 setPositions({});
                 setSizes({});
+                setStacks({});
               }}
             >
               RESTAURAR LAYOUT
@@ -413,11 +431,7 @@ export default function App() {
               shape={shape}
               editMode={editMode}
               selected={selectedShape === shape.id}
-              onSelect={(id) => {
-                setSelectedShape(id);
-                setSelectedBlock(null);
-                setSelectedImage(null);
-              }}
+              onSelect={selectShape}
               onChange={updateShape}
             />
           ))}
@@ -452,12 +466,13 @@ export default function App() {
               setTheme((current) => ({ ...current, ...patch }))
             }
             onThemeReset={() => setTheme(DEFAULT_THEME)}
+            shapes={shapes}
+            selectedShapeId={selectedShape}
             onAddShape={addShape}
-            selected={shapes.find((shape) => shape.id === selectedShape)}
-            onShapeChange={(patch) =>
-              selectedShape && updateShape(selectedShape, patch)
-            }
-            onShapeDelete={() => selectedShape && deleteShape(selectedShape)}
+            onSelectShape={selectShape}
+            onShapePatch={updateShape}
+            onShapeStack={stackShape}
+            onShapeDelete={deleteShape}
             blockLabel={selectedBlock ? blockLabel(selectedBlock) : undefined}
             blockStyle={selectedBlock ? blockStyles[selectedBlock] : undefined}
             onBlockChange={patchBlock}
@@ -465,6 +480,11 @@ export default function App() {
             blockSize={selectedBlock ? sizes[selectedBlock] : undefined}
             onBlockSizeReset={() =>
               selectedBlock && editor.setSize(selectedBlock)
+            }
+            blockStack={selectedBlock ? (stacks[selectedBlock] ?? 0) : 0}
+            onBlockStack={(delta) =>
+              selectedBlock &&
+              editor.setStack(selectedBlock, (stacks[selectedBlock] ?? 0) + delta)
             }
             imageSelected={!!selectedImage}
             imageFrame={selectedImage ? frames[selectedImage] : undefined}

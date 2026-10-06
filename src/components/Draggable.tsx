@@ -24,6 +24,7 @@ export default function Draggable({
   const position = editor.positions[id] ?? { x: 0, y: 0 };
   const blockStyle = editor.blockStyles[id];
   const size = editor.sizes[id];
+  const stack = editor.stacks[id];
   const wrapperRef = useRef<HTMLDivElement>(null);
   const resizeStart = useRef({ pointerX: 0, pointerY: 0, w: 0, h: 0 });
   const [resizing, setResizing] = useState(false);
@@ -114,6 +115,7 @@ export default function Draggable({
     transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
     width: size?.w,
     height: size?.h,
+    zIndex: stack || undefined,
     "--block-bg": blockStyle?.bg,
     "--orange": blockStyle?.accent,
     "--orange-soft": blockStyle?.accent

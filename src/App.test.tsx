@@ -508,9 +508,9 @@ describe("enquadramento de fotos", () => {
 
   it("ajusta o zoom pelo painel e guarda o enquadramento", async () => {
     await openWithImage();
-    expect(screen.getByText(/clique em ENQUADRAR/)).toBeInTheDocument();
+    expect(screen.getByText(/clique em AJUSTAR/)).toBeInTheDocument();
 
-    await userEvent.click(button("ENQUADRAR"));
+    await userEvent.click(button("AJUSTAR"));
     expect(button("CONCLUIR")).toHaveAttribute("aria-pressed", "true");
 
     fireEvent.change(screen.getByLabelText("Zoom da foto"), {
@@ -532,12 +532,200 @@ describe("enquadramento de fotos", () => {
     expect(window.localStorage.getItem("defesa-civil-frames")).toBe("{}");
   });
 
-  it("clicar em Enquadrar não abre o seletor de arquivos", async () => {
+  it("clicar em Ajustar não abre o seletor de arquivos", async () => {
     await openWithImage();
     const picker = vi.spyOn(HTMLInputElement.prototype, "click");
     picker.mockClear(); // o spy já contava a abertura do projeto
-    await userEvent.click(button("ENQUADRAR"));
+    await userEvent.click(button("AJUSTAR"));
     expect(picker).not.toHaveBeenCalled();
+  });
+});
+
+describe("rotação e camadas das formas", () => {
+  const shapeEls = () =>
+    Array.from(document.querySelectorAll<HTMLElement>(".shape-item"));
+  const addShapes = async (...names: string[]) => {
+    for (const name of names) {
+      await userEvent.click(button(`+ ${name}`));
+    }
+  };
+  const shapesSection = () => panelSection("FORMAS");
+  const layers = () => within(screen.getByRole("list", { name: "Camadas das formas" }));
+  const layerNames = () =>
+    Array.from(document.querySelectorAll(".layer-name")).map((el) => el.textContent);
+
+  it("gira a forma pelo controle de rotação e pelo teclado", async () => {
+    render(<App />);
+    await enterEditMode();
+    await addShapes("Retângulo");
+
+    fireEvent.change(shapesSection().getByLabelText("Rotação"), {
+      target: { value: "30" },
+    });
+    expect(shapeEls()[0].style.transform).toBe("rotate(30deg)");
+
+    const shape = screen.getByRole("button", { name: /Forma: retângulo/ });
+    fireEvent.keyDown(shape, { key: "]" });
+    expect(shapeEls()[0].style.transform).toBe("rotate(35deg)");
+    fireEvent.keyDown(shape, { key: "[", shiftKey: true });
+    expect(shapeEls()[0].style.transform).toBe("rotate(20deg)");
+
+    expect(window.localStorage.getItem("defesa-civil-shapes")).toContain('"rotation":20');
+  });
+
+  it("edita posição e tamanho por números", async () => {
+    render(<App />);
+    await enterEditMode();
+    await addShapes("Círculo");
+    const section = shapesSection();
+
+    fireEvent.change(section.getByLabelText("X"), { target: { value: "200" } });
+    fireEvent.change(section.getByLabelText("Largura"), { target: { value: "10" } });
+    expect(shapeEls()[0].style.left).toBe("200px");
+    expect(shapeEls()[0].style.width).toBe("16px"); // respeita o mínimo
+  });
+
+  it("reordena as camadas pela lista e reflete na ordem de desenho", async () => {
+    render(<App />);
+    await enterEditMode();
+    await addShapes("Retângulo", "Círculo");
+    expect(layerNames()).toEqual(["Círculo 1", "Retângulo 1"]);
+    // O último do array é o que fica por cima.
+    expect(shapeEls().map((el) => el.getAttribute("aria-label"))).toEqual([
+      expect.stringContaining("retângulo"),
+      expect.stringContaining("círculo"),
+    ]);
+
+    await userEvent.click(layers().getByRole("button", { name: "Descer Círculo 1" }));
+    expect(layerNames()).toEqual(["Retângulo 1", "Círculo 1"]);
+    expect(shapeEls()[0].getAttribute("aria-label")).toContain("círculo");
+
+    await userEvent.click(shapesSection().getByRole("button", { name: "Para o fundo" }));
+    expect(layerNames()).toEqual(["Retângulo 1", "Círculo 1"]);
+  });
+
+  it("coloca a forma atrás dos blocos e separa na lista de camadas", async () => {
+    render(<App />);
+    await enterEditMode();
+    await addShapes("Retângulo");
+    expect(shapeEls()[0].style.zIndex).toBe("10");
+
+    await userEvent.click(shapesSection().getByLabelText("Atrás dos blocos"));
+    expect(shapeEls()[0].style.zIndex).toBe("-1");
+    expect(screen.getByText("Atrás dos blocos", { selector: ".layer-heading" })).toBeInTheDocument();
+    expect(screen.getByText("Blocos do painel")).toBeInTheDocument();
+  });
+
+  it("oculta e bloqueia pelas camadas", async () => {
+    render(<App />);
+    await enterEditMode();
+    await addShapes("Seta");
+
+    await userEvent.click(layers().getByRole("button", { name: "Bloquear Seta 1" }));
+    const shape = screen.getByRole("button", { name: /Forma: seta \(bloqueada\)/ });
+    const left = shapeEls()[0].style.left;
+    fireEvent.keyDown(shape, { key: "ArrowRight", shiftKey: true });
+    expect(shapeEls()[0].style.left).toBe(left); // bloqueada: não se move
+    expect(document.querySelector(".shape-rotate")).toBeNull();
+
+    await userEvent.click(layers().getByRole("button", { name: "Ocultar Seta 1" }));
+    expect(shapeEls()).toHaveLength(0);
+    await userEvent.click(layers().getByRole("button", { name: "Mostrar Seta 1" }));
+    expect(shapeEls()).toHaveLength(1);
+  });
+
+  it("formas antigas (sem rotação nem camadas) continuam funcionando", async () => {
+    window.localStorage.setItem(
+      "defesa-civil-shapes",
+      JSON.stringify([
+        { id: "velha", type: "rect", x: 10, y: 20, w: 80, h: 40, color: "#fff", filled: false, opacity: 1, strokeWidth: 3 },
+      ]),
+    );
+    render(<App />);
+    expect(shapeEls()).toHaveLength(1);
+    expect(shapeEls()[0].style.transform).toBe("");
+    expect(shapeEls()[0].style.zIndex).toBe("10");
+  });
+
+  it("Desfazer volta a rotação e a ordem", async () => {
+    render(<App />);
+    await enterEditMode();
+    await addShapes("Retângulo", "Círculo");
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    await userEvent.click(layers().getByRole("button", { name: "Descer Círculo 1" }));
+    expect(layerNames()).toEqual(["Retângulo 1", "Círculo 1"]);
+    await userEvent.click(button("DESFAZER"));
+    expect(layerNames()).toEqual(["Círculo 1", "Retângulo 1"]);
+  });
+});
+
+describe("camada dos blocos", () => {
+  it("traz para a frente e envia para trás entre blocos do mesmo grupo", async () => {
+    const { unmount } = render(<App />);
+    await enterEditMode();
+    const card = document.querySelector(".triage-card--small") as HTMLElement;
+    const wrapper = card.parentElement as HTMLElement;
+    await userEvent.click(card);
+
+    const block = panelSection("BLOCO SELECIONADO");
+    await userEvent.click(block.getByRole("button", { name: "Trazer bloco para a frente" }));
+    expect(wrapper.style.zIndex).toBe("1");
+    expect(block.getByLabelText("Camada do bloco")).toHaveTextContent("1");
+
+    await userEvent.click(block.getByRole("button", { name: "Enviar bloco para trás" }));
+    await userEvent.click(block.getByRole("button", { name: "Enviar bloco para trás" }));
+    expect(wrapper.style.zIndex).toBe("-1");
+    expect(window.localStorage.getItem("defesa-civil-stacks")).toContain("-1");
+
+    unmount();
+    render(<App />);
+    expect(
+      (document.querySelector(".triage-card--small")!.parentElement as HTMLElement).style.zIndex,
+    ).toBe("-1");
+  });
+
+  it("Restaurar layout zera as camadas dos blocos", async () => {
+    render(<App />);
+    await enterEditMode();
+    await userEvent.click(document.querySelector(".triage-card--large") as HTMLElement);
+    await userEvent.click(
+      panelSection("BLOCO SELECIONADO").getByRole("button", { name: "Trazer bloco para a frente" }),
+    );
+    expect(window.localStorage.getItem("defesa-civil-stacks")).toContain("triage-large-card");
+    await userEvent.click(button("RESTAURAR LAYOUT"));
+    expect(window.localStorage.getItem("defesa-civil-stacks")).toBe("{}");
+  });
+});
+
+describe("transparência da foto", () => {
+  const png =
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+
+  it("ajusta a transparência da foto e mantém no projeto", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    pickFile(
+      new File(
+        [JSON.stringify({ app: "painel-defesa-civil", images: { "monitor-map": png } })],
+        "p.json",
+      ),
+    );
+    render(<App />);
+    await userEvent.click(button("ABRIR PROJETO"));
+    await waitFor(() => expect(document.querySelectorAll(".uploaded-image")).toHaveLength(1));
+    await enterEditMode();
+    await userEvent.click(button("AJUSTAR"));
+
+    const img = document.querySelector(".uploaded-image") as HTMLElement;
+    expect(img.style.opacity).toBe("");
+    fireEvent.change(screen.getByLabelText("Transparência da foto"), {
+      target: { value: "60" },
+    });
+    expect(img.style.opacity).toBe("0.4");
+    expect(window.localStorage.getItem("defesa-civil-frames")).toContain('"opacity":0.4');
+
+    await userEvent.click(button("Restaurar enquadramento"));
+    expect(img.style.opacity).toBe("");
+    expect(window.localStorage.getItem("defesa-civil-frames")).toBe("{}");
   });
 });
 

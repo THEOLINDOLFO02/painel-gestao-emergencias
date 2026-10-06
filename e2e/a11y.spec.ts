@@ -42,7 +42,7 @@ test.describe("acessibilidade (axe): recursos novos", () => {
     const chooser = page.waitForEvent("filechooser");
     await page.locator(".image-placeholder--editable").first().click();
     await (await chooser).setFiles({ name: "foto.png", mimeType: "image/png", buffer: png });
-    await page.getByRole("button", { name: "ENQUADRAR" }).click();
+    await page.getByRole("button", { name: "AJUSTAR" }).click();
     await page.locator(".design-panel").getByLabel("Texto", { exact: true }).first().fill("#0a1018"); // dispara o aviso
 
     // As cores ruins escolhidas de propósito acima fariam o axe reclamar de

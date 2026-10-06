@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import type { BlockStyle } from "../DesignTools";
+import type { BlockStyle } from "./theme";
 
 export type Position = {
   x: number;
@@ -12,11 +12,13 @@ export type Size = {
   h?: number;
 };
 
-// Enquadramento de uma foto: zoom (1 = ajustada) e deslocamento em % da imagem.
+// Enquadramento de uma foto: zoom (1 = ajustada), deslocamento em % da imagem
+// e opacidade (1 = opaca; ausente = opaca).
 export type Frame = {
   zoom: number;
   x: number;
   y: number;
+  opacity?: number;
 };
 
 // Estado de edição compartilhado pelos componentes do painel.
@@ -33,6 +35,8 @@ export type EditorState = {
   setSize: (id: string, size?: Size) => void;
   frames: Record<string, Frame>;
   setFrame: (id: string, frame?: Frame) => void;
+  stacks: Record<string, number>;
+  setStack: (id: string, stack?: number) => void;
   selectedImage: string | null;
   selectImage: (id: string | null) => void;
   blockStyles: Record<string, BlockStyle>;
@@ -53,6 +57,8 @@ export const EditorContext = createContext<EditorState>({
   setSize: () => {},
   frames: {},
   setFrame: () => {},
+  stacks: {},
+  setStack: () => {},
   selectedImage: null,
   selectImage: () => {},
   blockStyles: {},

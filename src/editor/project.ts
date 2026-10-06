@@ -1,4 +1,5 @@
-import { DEFAULT_THEME, type BlockStyle, type Shape, type Theme } from "../DesignTools";
+import type { Shape } from "./shapes";
+import { type BlockStyle, DEFAULT_THEME, type Theme } from "./theme";
 import type { Frame, Position, Size } from "./context";
 
 export type ProjectData = {
@@ -10,6 +11,7 @@ export type ProjectData = {
   positions: Record<string, Position>;
   sizes: Record<string, Size>;
   frames: Record<string, Frame>;
+  stacks: Record<string, number>;
 };
 
 const APP_ID = "painel-defesa-civil";
@@ -29,6 +31,7 @@ export function downloadProject(data: ProjectData) {
     positions: data.positions,
     sizes: data.sizes,
     frames: data.frames,
+    stacks: data.stacks,
   };
   const url = URL.createObjectURL(
     new Blob([JSON.stringify(project)], { type: "application/json" }),
@@ -58,6 +61,7 @@ export async function readProjectFile(file: File): Promise<ProjectData> {
     positions: isRecord(project.positions) ? project.positions : {},
     sizes: isRecord(project.sizes) ? project.sizes : {},
     frames: isRecord(project.frames) ? project.frames : {},
+    stacks: isRecord(project.stacks) ? project.stacks : {},
   };
 }
 

@@ -157,7 +157,7 @@ test.describe("redimensionar, enquadrar e modelos", () => {
     await enterEditMode(page);
     await uploadFirstImage(page);
 
-    await page.getByRole("button", { name: "ENQUADRAR" }).click();
+    await page.getByRole("button", { name: "AJUSTAR" }).click();
     await page.getByLabel("Zoom da foto").fill("200");
     const img = page.locator(".uploaded-image");
     await expect(img).toHaveCSS("transform", /matrix\(2, 0, 0, 2/);
@@ -202,6 +202,125 @@ test.describe("redimensionar, enquadrar e modelos", () => {
     await expect(page.locator(".contrast-warning").first()).toContainText("contraste");
     await page.locator(".design-panel").getByLabel("Texto", { exact: true }).first().fill("#ffffff");
     await expect(page.locator(".contrast-warning")).toHaveCount(0);
+  });
+});
+
+test.describe("rotação, camadas e transparência", () => {
+  const topAt = (page: import("@playwright/test").Page, point: { x: number; y: number }) =>
+    page.evaluate(({ x, y }) => {
+      const el = document.elementFromPoint(x, y) as HTMLElement | null;
+      return el?.closest(".shape-item")?.getAttribute("aria-label") ?? "";
+    }, point);
+
+  test("gira uma forma arrastando a alça de rotação", async ({ page }) => {
+    await openPanel(page);
+    await enterEditMode(page);
+    await page.getByRole("button", { name: "+ Retângulo" }).click();
+
+    const shape = page.locator(".shape-item");
+    const box = (await shape.boundingBox())!;
+    const centerPoint = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+
+    const handle = (await page.locator(".shape-rotate").boundingBox())!;
+    const from = { x: handle.x + handle.width / 2, y: handle.y + handle.height / 2 };
+    // Arrasta a alça (acima do centro) para a direita do centro: 90°.
+    await dragBetween(page, from, { x: centerPoint.x + 150, y: centerPoint.y });
+
+    const transform = await shape.evaluate((el) => (el as HTMLElement).style.transform);
+    const degrees = Number(/rotate\((-?\d+)deg\)/.exec(transform)?.[1]);
+    expect(Math.abs(degrees - 90)).toBeLessThanOrEqual(2);
+
+    // Girada ~90°, largura e altura visuais se trocam.
+    const rotated = (await shape.boundingBox())!;
+    expect(Math.abs(rotated.width - box.height)).toBeLessThan(6);
+    expect(Math.abs(rotated.height - box.width)).toBeLessThan(6);
+
+    await page.reload();
+    const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("defesa-civil-shapes")!));
+    expect(Math.abs(stored[0].rotation - 90)).toBeLessThanOrEqual(2);
+  });
+
+  test("a forma que está por cima muda ao reordenar as camadas", async ({ page }) => {
+    await openPanel(page);
+    await enterEditMode(page);
+    await page.getByRole("button", { name: "+ Retângulo" }).click();
+    await page.getByRole("button", { name: "+ Círculo" }).click();
+
+    const first = (await page.locator(".shape-item").first().boundingBox())!;
+    const point = { x: first.x + first.width / 2, y: first.y + first.height / 2 };
+
+    expect(await topAt(page, point)).toContain("círculo");
+    await page.getByRole("button", { name: "Descer Círculo 1" }).click();
+    expect(await topAt(page, point)).toContain("retângulo");
+    await page.getByRole("button", { name: "Subir Círculo 1" }).click();
+    expect(await topAt(page, point)).toContain("círculo");
+  });
+
+  test("a forma pode ficar atrás dos blocos do painel", async ({ page }) => {
+    await openPanel(page);
+    await enterEditMode(page);
+    await page.getByRole("button", { name: "+ Retângulo" }).click();
+    const box = (await page.locator(".shape-item").boundingBox())!;
+    const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+
+    expect(await topAt(page, point)).toContain("retângulo");
+    await page.getByLabel("Atrás dos blocos").check();
+    expect(await topAt(page, point)).not.toContain("retângulo");
+    await expect(page.locator(".shape-item")).toHaveCount(1); // continua no painel
+
+    await page.getByLabel("Atrás dos blocos").uncheck();
+    expect(await topAt(page, point)).toContain("retângulo");
+  });
+
+  test("um bloco pode ser trazido para a frente de outro que ele cobre", async ({ page }) => {
+    await openPanel(page);
+    await enterEditMode(page);
+    await page.locator(".triage-section").scrollIntoViewIfNeeded();
+
+    const small = page.locator(".triage-card--small");
+    const handle = small
+      .locator("xpath=..")
+      .locator(":scope > .drag-handle");
+    const hb = (await handle.boundingBox())!;
+    const from = { x: hb.x + hb.width / 2, y: hb.y + hb.height / 2 };
+    // Empurra o cartão da esquerda por cima do da direita.
+    await dragBetween(page, from, { x: from.x + 330, y: from.y });
+
+    const large = (await page.locator(".triage-card--large").boundingBox())!;
+    const point = { x: large.x + 40, y: large.y + 60 };
+    const owner = () =>
+      page.evaluate(({ x, y }) => {
+        const el = document.elementFromPoint(x, y) as HTMLElement | null;
+        return el?.closest(".triage-card--small") ? "small" : el?.closest(".triage-card--large") ? "large" : "outro";
+      }, point);
+
+    expect(await owner()).toBe("large"); // por padrão o da direita fica por cima
+    // O cartão está coberto: seleciona pelo teclado (a alça seleciona ao receber foco).
+    await handle.focus();
+    await page
+      .getByRole("button", { name: "Trazer bloco para a frente" })
+      .click();
+    expect(await owner()).toBe("small");
+  });
+
+  test("a transparência da foto aparece de verdade e persiste", async ({ page }) => {
+    await openPanel(page);
+    await enterEditMode(page);
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+      "base64",
+    );
+    const chooser = page.waitForEvent("filechooser");
+    await page.locator(".image-placeholder--editable").first().click();
+    await (await chooser).setFiles({ name: "foto.png", mimeType: "image/png", buffer: png });
+    await page.getByRole("button", { name: "AJUSTAR" }).click();
+
+    await page.getByLabel("Transparência da foto").fill("50");
+    const img = page.locator(".uploaded-image");
+    await expect(img).toHaveCSS("opacity", "0.5");
+
+    await page.reload();
+    await expect(page.locator(".uploaded-image")).toHaveCSS("opacity", "0.5");
   });
 });
 

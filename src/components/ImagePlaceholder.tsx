@@ -79,6 +79,7 @@ export default function ImagePlaceholder({
         zoom: current.zoom,
         x: start.x + ((event.clientX - start.pointerX) / start.width) * 100,
         y: start.y + ((event.clientY - start.pointerY) / start.height) * 100,
+        opacity: current.opacity,
       }),
     );
   };
@@ -103,7 +104,10 @@ export default function ImagePlaceholder({
           src={image}
           alt={label}
           className="uploaded-image"
-          style={{ transform: frameTransform(frame) }}
+          style={{
+            transform: frameTransform(frame),
+            opacity: frame?.opacity,
+          }}
           draggable={false}
         />
       ) : (
@@ -143,7 +147,7 @@ export default function ImagePlaceholder({
               selectImage(framing ? null : id);
             }}
           >
-            {framing ? "CONCLUIR" : "ENQUADRAR"}
+            {framing ? "CONCLUIR" : "AJUSTAR"}
           </button>
           <button
             type="button"

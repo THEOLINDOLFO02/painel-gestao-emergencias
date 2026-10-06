@@ -15,6 +15,9 @@ No painel, **Editar painel** libera textos, imagens, cores, fontes, formas e pos
 Outros recursos: **Modelos** (Alagamento, Deslizamento, Padrão), **Versões** nomeadas do
 projeto, redimensionar blocos (quadrado ciano no canto do bloco selecionado), **Enquadrar**
 fotos (zoom e posição) e aviso de contraste ao escolher cores.
+Formas: girar (alça acima da forma, controle de rotação ou teclas `[` e `]`), editar
+posição e tamanho por números, **camadas** (subir/descer, esconder, bloquear, pôr atrás dos
+blocos do painel). Blocos: trazer para a frente/enviar para trás. Fotos: **transparência**.
 As edições ficam no navegador (localStorage e IndexedDB) e não são compartilhadas
 entre pessoas ou computadores — para isso, use o arquivo `.json`.
 

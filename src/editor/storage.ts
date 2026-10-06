@@ -7,6 +7,7 @@ export const STORAGE_KEYS = {
   blocks: "defesa-civil-blocks",
   sizes: "defesa-civil-sizes",
   frames: "defesa-civil-frames",
+  stacks: "defesa-civil-stacks",
 } as const;
 
 export function loadStored<T>(key: string, fallback: T): T {

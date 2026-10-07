@@ -159,7 +159,7 @@ test.describe("redimensionar, enquadrar e modelos", () => {
 
     await page.getByRole("button", { name: "AJUSTAR" }).click();
     await page.getByLabel("Zoom da foto").fill("200");
-    const img = page.locator(".uploaded-image");
+    const img = page.locator(".photo-frame");
     await expect(img).toHaveCSS("transform", /matrix\(2, 0, 0, 2/);
 
     const box = (await page.locator(".image-placeholder--framing").boundingBox())!;
@@ -174,7 +174,7 @@ test.describe("redimensionar, enquadrar e modelos", () => {
     expect(frame.x).toBeGreaterThanOrEqual(-50); // sem deixar borda vazia
 
     await page.reload();
-    await expect(page.locator(".uploaded-image")).toHaveCSS("transform", /matrix\(2, 0, 0, 2/);
+    await expect(page.locator(".photo-frame")).toHaveCSS("transform", /matrix\(2, 0, 0, 2/);
   });
 
   test("aplica o modelo Alagamento e depois volta ao Padrão", async ({ page }) => {
@@ -316,11 +316,11 @@ test.describe("rotação, camadas e transparência", () => {
     await page.getByRole("button", { name: "AJUSTAR" }).click();
 
     await page.getByLabel("Transparência da foto").fill("50");
-    const img = page.locator(".uploaded-image");
+    const img = page.locator(".photo-frame");
     await expect(img).toHaveCSS("opacity", "0.5");
 
     await page.reload();
-    await expect(page.locator(".uploaded-image")).toHaveCSS("opacity", "0.5");
+    await expect(page.locator(".photo-frame")).toHaveCSS("opacity", "0.5");
   });
 });
 

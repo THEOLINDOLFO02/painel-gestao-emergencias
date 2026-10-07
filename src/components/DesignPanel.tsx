@@ -1,7 +1,14 @@
 import { type ReactNode, useState } from "react";
 import { contrastWarnings, formatRatio, MIN_CONTRAST } from "../editor/contrast";
 import type { Frame, Size } from "../editor/context";
-import { clampFrame, DEFAULT_FRAME, isDefaultFrame, MAX_ZOOM, maxPan } from "../editor/frame";
+import {
+  clampFrame,
+  DEFAULT_FRAME,
+  isDefaultFrame,
+  MAX_ZOOM,
+  maxPan,
+  turn,
+} from "../editor/frame";
 import {
   isLineShape,
   layerGroups,
@@ -140,6 +147,13 @@ export type DesignPanelProps = {
   imageFrame?: Frame;
   onFrameChange: (frame: Frame) => void;
   onFrameReset: () => void;
+  /** Há ajustes copiados esperando para serem colados. */
+  canPaste: boolean;
+  /** Quantas fotos já foram inseridas no painel. */
+  photoCount: number;
+  onFrameCopy: () => void;
+  onFramePaste: (includePosition: boolean) => void;
+  onFrameApplyAll: (includePosition: boolean) => void;
 };
 
 const COLOR_FIELDS = [
@@ -188,6 +202,7 @@ export default function DesignPanel(props: DesignPanelProps) {
   ]);
 
   // Em telas estreitas o painel começa recolhido para não cobrir o conteúdo.
+  const [includePosition, setIncludePosition] = useState(true);
   const [collapsed, setCollapsed] = useState(
     () => window.matchMedia?.("(max-width: 768px)").matches ?? false,
   );
@@ -429,8 +444,45 @@ export default function DesignPanel(props: DesignPanelProps) {
                     props.onFrameChange(clampFrame({ ...frame, opacity: 1 - value / 100 }))
                   }
                 />
+                <div className="photo-tools">
+                  <button
+                    className="panel-button"
+                    onClick={() =>
+                      props.onFrameChange(clampFrame({ ...frame, rotate: turn(frame.rotate, -1) }))
+                    }
+                  >
+                    ↺ Girar 90°
+                  </button>
+                  <button
+                    className="panel-button"
+                    onClick={() =>
+                      props.onFrameChange(clampFrame({ ...frame, rotate: turn(frame.rotate, 1) }))
+                    }
+                  >
+                    ↻ Girar 90°
+                  </button>
+                  <button
+                    className="panel-button"
+                    aria-pressed={!!frame.flipX}
+                    onClick={() =>
+                      props.onFrameChange(clampFrame({ ...frame, flipX: !frame.flipX }))
+                    }
+                  >
+                    ⇋ Espelhar
+                  </button>
+                  <button
+                    className="panel-button"
+                    aria-pressed={!!frame.flipY}
+                    onClick={() =>
+                      props.onFrameChange(clampFrame({ ...frame, flipY: !frame.flipY }))
+                    }
+                  >
+                    ⇅ Inverter
+                  </button>
+                </div>
                 <span style={hint}>
-                  Você também pode arrastar a foto para reposicionar.
+                  Você também pode arrastar a foto para reposicionar. Giro atual:{" "}
+                  {frame.rotate ?? 0}°.
                 </span>
                 <button
                   className="panel-button"
@@ -439,6 +491,35 @@ export default function DesignPanel(props: DesignPanelProps) {
                 >
                   Restaurar enquadramento
                 </button>
+                <div className="photo-copy">
+                  <label>
+                    Incluir posição (arrasto)
+                    <input
+                      type="checkbox"
+                      checked={includePosition}
+                      onChange={(event) => setIncludePosition(event.target.checked)}
+                    />
+                  </label>
+                  <div className="photo-tools">
+                    <button className="panel-button" onClick={props.onFrameCopy}>
+                      Copiar ajustes
+                    </button>
+                    <button
+                      className="panel-button"
+                      disabled={!props.canPaste}
+                      onClick={() => props.onFramePaste(includePosition)}
+                    >
+                      Colar nesta foto
+                    </button>
+                  </div>
+                  <button
+                    className="panel-button"
+                    disabled={props.photoCount < 2}
+                    onClick={() => props.onFrameApplyAll(includePosition)}
+                  >
+                    Aplicar a todas as fotos ({props.photoCount})
+                  </button>
+                </div>
               </>
             ) : (
               <span style={hint}>

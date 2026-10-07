@@ -516,7 +516,7 @@ describe("enquadramento de fotos", () => {
     fireEvent.change(screen.getByLabelText("Zoom da foto"), {
       target: { value: "200" },
     });
-    const img = document.querySelector(".uploaded-image") as HTMLElement;
+    const img = document.querySelector(".photo-frame") as HTMLElement;
     expect(img.style.transform).toBe("translate(0%, 0%) scale(2)");
     expect(window.localStorage.getItem("defesa-civil-frames")).toContain(
       "monitor-map",
@@ -715,7 +715,7 @@ describe("transparência da foto", () => {
     await enterEditMode();
     await userEvent.click(button("AJUSTAR"));
 
-    const img = document.querySelector(".uploaded-image") as HTMLElement;
+    const img = document.querySelector(".photo-frame") as HTMLElement;
     expect(img.style.opacity).toBe("");
     fireEvent.change(screen.getByLabelText("Transparência da foto"), {
       target: { value: "60" },
@@ -726,6 +726,150 @@ describe("transparência da foto", () => {
     await userEvent.click(button("Restaurar enquadramento"));
     expect(img.style.opacity).toBe("");
     expect(window.localStorage.getItem("defesa-civil-frames")).toBe("{}");
+  });
+});
+
+describe("giro, espelhamento e cópia de ajustes (tela)", () => {
+  const png =
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+
+  const openWithImages = async (ids: string[]) => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    pickFile(
+      new File(
+        [
+          JSON.stringify({
+            app: "painel-defesa-civil",
+            images: Object.fromEntries(ids.map((id) => [id, png])),
+          }),
+        ],
+        "p.json",
+      ),
+    );
+    render(<App />);
+    await userEvent.click(button("ABRIR PROJETO"));
+    await waitFor(() =>
+      expect(document.querySelectorAll(".uploaded-image")).toHaveLength(ids.length),
+    );
+    await enterEditMode();
+  };
+
+  const photo = () => panelSection("FOTO SELECIONADA");
+  const imgs = () =>
+    Array.from(document.querySelectorAll<HTMLImageElement>(".uploaded-image"));
+  const frames = () =>
+    JSON.parse(window.localStorage.getItem("defesa-civil-frames") ?? "{}");
+
+  it("gira a foto de 90° em 90° e a coloca de lado", async () => {
+    await openWithImages(["monitor-map"]);
+    await userEvent.click(button("AJUSTAR"));
+
+    await userEvent.click(photo().getByRole("button", { name: "↻ Girar 90°" }));
+    expect(imgs()[0].dataset.rotate).toBe("90");
+    expect(frames()["monitor-map"]).toMatchObject({ rotate: 90 });
+
+    await userEvent.click(photo().getByRole("button", { name: "↻ Girar 90°" }));
+    expect(imgs()[0].dataset.rotate).toBe("180");
+
+    await userEvent.click(photo().getByRole("button", { name: "↺ Girar 90°" }));
+    await userEvent.click(photo().getByRole("button", { name: "↺ Girar 90°" }));
+    expect(imgs()[0].dataset.rotate).toBe("0");
+    expect(frames()).toEqual({});
+  });
+
+  it("espelha e inverte, e guarda no projeto", async () => {
+    await openWithImages(["monitor-map"]);
+    await userEvent.click(button("AJUSTAR"));
+
+    const mirror = photo().getByRole("button", { name: "⇋ Espelhar" });
+    const invert = photo().getByRole("button", { name: "⇅ Inverter" });
+    await userEvent.click(mirror);
+    expect(imgs()[0].dataset.flipX).toBe("true");
+    expect(mirror).toHaveAttribute("aria-pressed", "true");
+
+    await userEvent.click(invert);
+    expect(imgs()[0].dataset.flipY).toBe("true");
+    expect(frames()["monitor-map"]).toMatchObject({ flipX: true, flipY: true });
+
+    await userEvent.click(mirror);
+    expect(imgs()[0].dataset.flipX).toBeUndefined();
+    expect(imgs()[0].dataset.flipY).toBe("true");
+    expect(mirror).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("copia os ajustes de uma foto e cola em outra, mantendo a posição dela", async () => {
+    await openWithImages(["monitor-map", "monitor-radar"]);
+    const adjust = screen.getAllByRole("button", { name: "AJUSTAR" });
+
+    await userEvent.click(adjust[0]);
+    fireEvent.change(photo().getByLabelText("Zoom da foto"), { target: { value: "200" } });
+    await userEvent.click(photo().getByRole("button", { name: "↻ Girar 90°" }));
+    await userEvent.click(photo().getByRole("button", { name: "⇋ Espelhar" }));
+    expect(photo().getByRole("button", { name: "Colar nesta foto" })).toBeDisabled();
+    await userEvent.click(photo().getByRole("button", { name: "Copiar ajustes" }));
+    expect(photo().getByRole("button", { name: "Colar nesta foto" })).toBeEnabled();
+
+    // Segunda foto: já tem uma posição própria, que deve ser mantida.
+    await userEvent.click(screen.getAllByRole("button", { name: /^(AJUSTAR|CONCLUIR)$/ })[1]);
+    fireEvent.change(photo().getByLabelText("Zoom da foto"), { target: { value: "300" } });
+    fireEvent.change(photo().getByLabelText("Posição horizontal da foto"), {
+      target: { value: "20" },
+    });
+    const ownX = frames()["monitor-radar"].x;
+    expect(ownX).toBeGreaterThan(0);
+
+    await userEvent.click(photo().getByLabelText("Incluir posição (arrasto)")); // desmarca
+    await userEvent.click(photo().getByRole("button", { name: "Colar nesta foto" }));
+    expect(frames()["monitor-radar"]).toMatchObject({
+      zoom: 2,
+      rotate: 90,
+      flipX: true,
+      x: Math.min(ownX, 50), // posição própria, limitada ao novo zoom (±50%)
+    });
+    expect(imgs()[1].dataset.rotate).toBe("90");
+    expect(imgs()[1].dataset.flipX).toBe("true");
+  });
+
+  it("aplica os ajustes a todas as fotos, com confirmação, e permite desfazer", async () => {
+    await openWithImages(["monitor-map", "monitor-radar", "triage-small"]);
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    await userEvent.click(screen.getAllByRole("button", { name: "AJUSTAR" })[0]);
+    await userEvent.click(photo().getByRole("button", { name: "⇅ Inverter" }));
+    fireEvent.change(photo().getByLabelText("Transparência da foto"), {
+      target: { value: "30" },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 450)); // fecha o passo do histórico
+
+    confirm.mockClear();
+    await userEvent.click(
+      photo().getByRole("button", { name: "Aplicar a todas as fotos (3)" }),
+    );
+    expect(confirm).toHaveBeenCalledTimes(1);
+    for (const id of ["monitor-map", "monitor-radar", "triage-small"]) {
+      expect(frames()[id]).toMatchObject({ flipY: true, opacity: 0.7 });
+    }
+    expect(imgs().every((img) => img.dataset.flipY === "true")).toBe(true);
+
+    await userEvent.click(button("DESFAZER"));
+    expect(Object.keys(frames())).toEqual(["monitor-map"]);
+  });
+
+  it("não aplica a todas se a pessoa cancelar, e desativa com uma foto só", async () => {
+    await openWithImages(["monitor-map"]);
+    await userEvent.click(button("AJUSTAR"));
+    expect(
+      photo().getByRole("button", { name: "Aplicar a todas as fotos (1)" }),
+    ).toBeDisabled();
+  });
+
+  it("trocar a foto zera os ajustes dela", async () => {
+    await openWithImages(["monitor-map"]);
+    await userEvent.click(button("AJUSTAR"));
+    await userEvent.click(photo().getByRole("button", { name: "⇋ Espelhar" }));
+    expect(frames()["monitor-map"]).toBeDefined();
+    await userEvent.click(button("REMOVER"));
+    expect(frames()).toEqual({});
   });
 });
 

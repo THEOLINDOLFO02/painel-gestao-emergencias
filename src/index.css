@@ -1621,3 +1621,20 @@ button.tool-control:disabled {
     display: none !important;
   }
 }
+
+/* ---------- Giro e espelhamento de fotos ---------- */
+.photo-frame {
+  position: absolute;
+  inset: 0;
+}
+
+.photo-tools {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.photo-copy {
+  display: grid;
+  gap: 6px;
+}

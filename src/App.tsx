@@ -15,7 +15,7 @@ import {
   type Position,
   type Size,
 } from "./editor/context";
-import { DEFAULT_FRAME, isDefaultFrame } from "./editor/frame";
+import { copyFrame, DEFAULT_FRAME, isDefaultFrame } from "./editor/frame";
 import type { Template } from "./editor/templates";
 import {
   downloadProject,
@@ -81,6 +81,8 @@ export default function App() {
   const [stacks, setStacks] = useState(() =>
     loadStored<Record<string, number>>(STORAGE_KEYS.stacks, {}),
   );
+  // Ajustes de foto copiados, prontos para colar em outra foto.
+  const [copiedFrame, setCopiedFrame] = useState<Frame | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedShape, setSelectedShape] = useState<string | null>(null);
   const [selectedBlock, setSelectedBlock] = useState<string | null>(null);
@@ -494,6 +496,40 @@ export default function App() {
             onFrameReset={() =>
               selectedImage && editor.setFrame(selectedImage, DEFAULT_FRAME)
             }
+            canPaste={copiedFrame !== null}
+            photoCount={Object.keys(images).length}
+            onFrameCopy={() =>
+              selectedImage &&
+              setCopiedFrame(frames[selectedImage] ?? DEFAULT_FRAME)
+            }
+            onFramePaste={(includePosition) =>
+              selectedImage &&
+              copiedFrame &&
+              editor.setFrame(
+                selectedImage,
+                copyFrame(copiedFrame, frames[selectedImage], includePosition),
+              )
+            }
+            onFrameApplyAll={(includePosition) => {
+              if (!selectedImage) return;
+              const source = frames[selectedImage] ?? DEFAULT_FRAME;
+              if (
+                !window.confirm(
+                  "Aplicar estes ajustes a todas as fotos inseridas? Os ajustes atuais delas serão substituídos (você pode desfazer).",
+                )
+              ) {
+                return;
+              }
+              setFrames((current) => {
+                const next = { ...current };
+                for (const id of Object.keys(images)) {
+                  const frame = copyFrame(source, current[id], includePosition);
+                  if (isDefaultFrame(frame)) delete next[id];
+                  else next[id] = frame;
+                }
+                return next;
+              });
+            }}
           />
         )}
       </main>

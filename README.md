@@ -17,7 +17,9 @@ projeto, redimensionar blocos (quadrado ciano no canto do bloco selecionado), **
 fotos (zoom e posição) e aviso de contraste ao escolher cores.
 Formas: girar (alça acima da forma, controle de rotação ou teclas `[` e `]`), editar
 posição e tamanho por números, **camadas** (subir/descer, esconder, bloquear, pôr atrás dos
-blocos do painel). Blocos: trazer para a frente/enviar para trás. Fotos: **transparência**.
+blocos do painel). Blocos: trazer para a frente/enviar para trás. Fotos (botão **AJUSTAR**):
+zoom, posição, **transparência**, **girar 90°**, **espelhar/inverter** e copiar os ajustes para
+outra foto ou para todas.
 As edições ficam no navegador (localStorage e IndexedDB) e não são compartilhadas
 entre pessoas ou computadores — para isso, use o arquivo `.json`.
 

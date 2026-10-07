@@ -12,13 +12,17 @@ export type Size = {
   h?: number;
 };
 
-// Enquadramento de uma foto: zoom (1 = ajustada), deslocamento em % da imagem
-// e opacidade (1 = opaca; ausente = opaca).
+// Ajustes de uma foto: zoom (1 = ajustada), deslocamento em % da imagem,
+// opacidade (ausente = opaca), giro de 90° em 90° e espelhamento.
 export type Frame = {
   zoom: number;
   x: number;
   y: number;
   opacity?: number;
+  /** Giro em graus: 90, 180 ou 270 (ausente = 0). */
+  rotate?: number;
+  flipX?: boolean;
+  flipY?: boolean;
 };
 
 // Estado de edição compartilhado pelos componentes do painel.

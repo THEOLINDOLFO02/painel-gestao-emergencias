@@ -1,6 +1,7 @@
 import { type KeyboardEvent, type PointerEvent, useRef } from "react";
 import { useEditor } from "../editor/context";
 import { clampFrame, DEFAULT_FRAME, frameTransform } from "../editor/frame";
+import { useOrientedImage } from "../editor/orient";
 import { pickFile } from "../editor/project";
 import { compressImage } from "../editor/storage";
 
@@ -20,6 +21,7 @@ export default function ImagePlaceholder({
   const image = images[id];
   const frame = frames[id];
   const framing = editMode && !!image && selectedImage === id;
+  const photo = useOrientedImage(image, frame);
   const pan = useRef<{
     pointerX: number;
     pointerY: number;
@@ -76,10 +78,9 @@ export default function ImagePlaceholder({
     setFrame(
       id,
       clampFrame({
-        zoom: current.zoom,
+        ...current,
         x: start.x + ((event.clientX - start.pointerX) / start.width) * 100,
         y: start.y + ((event.clientY - start.pointerY) / start.height) * 100,
-        opacity: current.opacity,
       }),
     );
   };
@@ -100,16 +101,20 @@ export default function ImagePlaceholder({
       onPointerCancel={() => (pan.current = null)}
     >
       {image ? (
-        <img
-          src={image}
-          alt={label}
-          className="uploaded-image"
-          style={{
-            transform: frameTransform(frame),
-            opacity: frame?.opacity,
-          }}
-          draggable={false}
-        />
+        <div
+          className="photo-frame"
+          style={{ transform: frameTransform(frame), opacity: frame?.opacity }}
+        >
+          <img
+            src={photo}
+            alt={label}
+            className="uploaded-image"
+            data-rotate={frame?.rotate ?? 0}
+            data-flip-x={frame?.flipX ? "true" : undefined}
+            data-flip-y={frame?.flipY ? "true" : undefined}
+            draggable={false}
+          />
+        </div>
       ) : (
         <>
           <svg

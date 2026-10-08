@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import App from "./App";
 import { TEMPLATES } from "./editor/templates";
+import { failing, json, mockLiveFetch } from "./test/liveFixtures";
 
 const button = (name: string | RegExp) => screen.getByRole("button", { name });
 
@@ -307,7 +308,7 @@ describe("versões do projeto", () => {
     editText("EM OPERAÇÃO", "EM ALERTA");
 
     const dialog = within(await openVersions());
-    expect(dialog.getByText(/Nenhuma versão salva/)).toBeInTheDocument();
+    expect(await dialog.findByText(/Nenhuma versão salva/)).toBeInTheDocument();
     await userEvent.clear(dialog.getByLabelText("Nome da versão"));
     await userEvent.type(dialog.getByLabelText("Nome da versão"), "Simulado");
     await userEvent.click(dialog.getByRole("button", { name: "Salvar versão atual" }));
@@ -870,6 +871,195 @@ describe("giro, espelhamento e cópia de ajustes (tela)", () => {
     expect(frames()["monitor-map"]).toBeDefined();
     await userEvent.click(button("REMOVER"));
     expect(frames()).toEqual({});
+  });
+});
+
+describe("dados ao vivo nos cartões", () => {
+  const png =
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+  const row = (name: string) =>
+    screen.getByRole("rowheader", { name: new RegExp(name) }).closest("tr") as HTMLElement;
+  const liveSection = () => panelSection("DADOS AO VIVO");
+
+  it("mostra a chuva e as estações da região", async () => {
+    mockLiveFetch();
+    render(<App />);
+
+    expect(
+      await screen.findByRole("img", {
+        name: /Chuva por hora em Cajamar: 6 mm nas últimas 24 horas e 8 mm previstos/,
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Open-Meteo\.com/)).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "Chuva por dia" }).children).toHaveLength(5);
+
+    const table = await screen.findByRole("table", { name: /Pluviômetros do CEMADEN/ });
+    const names = within(table)
+      .getAllByRole("rowheader")
+      .map((header) => header.textContent);
+    expect(names).toEqual([
+      expect.stringContaining("Ponunduva"), // Cajamar sempre primeiro
+      expect.stringContaining("Fazenda Grande"),
+      expect.stringContaining("Parque Paulista"),
+    ]);
+    // Sem a parada (São Benedito), a hidrológica e a de fora da região.
+    expect(table).not.toHaveTextContent("São Benedito");
+    expect(table).not.toHaveTextContent("Rio Jundiai");
+    expect(table).not.toHaveTextContent("Campinas");
+
+    expect(within(row("Ponunduva")).getByText(/Normal/)).toBeInTheDocument();
+    expect(within(row("Parque Paulista")).getByText(/Atenção/)).toBeInTheDocument();
+    expect(within(row("Fazenda Grande")).getByText(/Alerta/)).toBeInTheDocument();
+    expect(screen.getByText("64,5 mm")).toBeInTheDocument(); // maior acumulado
+    expect(screen.getByText(/Cajamar: 1 de 2 pluviômetros ativos/)).toBeInTheDocument();
+    expect(screen.getByText(/Fonte: CEMADEN\/MCTI/)).toBeInTheDocument();
+  });
+
+  it("consulta o serviço com os municípios da região", async () => {
+    const { calls } = mockLiveFetch();
+    render(<App />);
+    await screen.findByRole("table", { name: /Pluviômetros/ });
+    const cemaden = calls.find((url) => url.includes("/api/cemaden"))!;
+    expect(new URL(cemaden).searchParams.get("ibge")).toContain("3509205");
+    expect(calls.some((url) => url.startsWith("https://api.open-meteo.com"))).toBe(true);
+  });
+
+  it("a foto inserida tem prioridade sobre os dados ao vivo", async () => {
+    mockLiveFetch();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    pickFile(
+      new File(
+        [JSON.stringify({ app: "painel-defesa-civil", images: { "monitor-rain": png } })],
+        "p.json",
+      ),
+    );
+    render(<App />);
+    await screen.findByRole("table", { name: /Pluviômetros/ });
+    await userEvent.click(button("ABRIR PROJETO"));
+    await waitFor(() => expect(document.querySelectorAll(".uploaded-image")).toHaveLength(1));
+    expect(screen.queryByRole("img", { name: /Chuva por hora/ })).toBeNull();
+    // O outro cartão continua ao vivo.
+    expect(screen.getByRole("table", { name: /Pluviômetros/ })).toBeInTheDocument();
+  });
+
+  it("no modo edição, oferece usar uma foto no lugar dos dados", async () => {
+    mockLiveFetch();
+    render(<App />);
+    await screen.findByRole("table", { name: /Pluviômetros/ });
+    expect(screen.queryByRole("button", { name: "USAR FOTO NO LUGAR" })).toBeNull();
+
+    await enterEditMode();
+    const buttons = screen.getAllByRole("button", { name: "USAR FOTO NO LUGAR" });
+    expect(buttons).toHaveLength(2);
+
+    const picker = vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => {});
+    await userEvent.click(buttons[0]);
+    expect(picker).toHaveBeenCalledTimes(1);
+  });
+
+  it("desligar nos ajustes devolve os espaços para foto e para de buscar", async () => {
+    const { fetchMock } = mockLiveFetch();
+    render(<App />);
+    await screen.findByRole("table", { name: /Pluviômetros/ });
+    await enterEditMode();
+
+    fetchMock.mockClear();
+    await userEvent.click(liveSection().getByLabelText("Mostrar dados ao vivo nos cartões"));
+    expect(screen.queryByRole("table", { name: /Pluviômetros/ })).toBeNull();
+    expect(screen.getByText(/Gráfico de alertas/)).toBeInTheDocument();
+    expect(screen.getByText(/Gráfico climático/)).toBeInTheDocument();
+    expect(JSON.parse(window.localStorage.getItem("defesa-civil-live")!)).toMatchObject({
+      enabled: false,
+    });
+
+    await userEvent.click(button("CONCLUIR EDIÇÃO"));
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("não busca nada se já estava desligado", async () => {
+    window.localStorage.setItem("defesa-civil-live", JSON.stringify({ enabled: false }));
+    const { fetchMock } = mockLiveFetch();
+    render(<App />);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.queryByRole("table", { name: /Pluviômetros/ })).toBeNull();
+  });
+
+  it("as faixas de alerta mudam o nível das estações", async () => {
+    mockLiveFetch();
+    render(<App />);
+    await screen.findByRole("table", { name: /Pluviômetros/ });
+    expect(within(row("Parque Paulista")).getByText(/Atenção/)).toBeInTheDocument();
+
+    await enterEditMode();
+    fireEvent.change(liveSection().getByLabelText("Alerta (mm/24 h)"), {
+      target: { value: "30" },
+    });
+    expect(within(row("Parque Paulista")).getByText(/Alerta/)).toBeInTheDocument();
+    expect(JSON.parse(window.localStorage.getItem("defesa-civil-live")!)).toMatchObject({
+      alert24: 30,
+    });
+  });
+
+  it("mostra avisos quando as duas fontes falham e permite tentar de novo", async () => {
+    mockLiveFetch({ rain: failing, stations: failing });
+    render(<App />);
+    expect(await screen.findByText("Previsão de chuva indisponível")).toBeInTheDocument();
+    expect(screen.getByText("Estações do CEMADEN indisponíveis")).toBeInTheDocument();
+
+    mockLiveFetch(); // a rede voltou
+    await userEvent.click(screen.getAllByRole("button", { name: "Tentar de novo" })[0]);
+    expect(await screen.findByRole("table", { name: /Pluviômetros/ })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /Chuva por hora/ })).toBeInTheDocument();
+  });
+
+  it("se só uma fonte falha, a outra continua funcionando", async () => {
+    mockLiveFetch({ rain: failing });
+    render(<App />);
+    expect(await screen.findByText("Previsão de chuva indisponível")).toBeInTheDocument();
+    expect(await screen.findByRole("table", { name: /Pluviômetros/ })).toBeInTheDocument();
+  });
+
+  it("trata resposta inválida como indisponível", async () => {
+    mockLiveFetch({
+      rain: () => json({ qualquer: "coisa" }),
+      stations: () => json({ erro: true }),
+    });
+    render(<App />);
+    expect(await screen.findByText("Previsão de chuva indisponível")).toBeInTheDocument();
+    expect(screen.getByText("Estações do CEMADEN indisponíveis")).toBeInTheDocument();
+  });
+
+  it("sem internet, mostra a última resposta guardada marcada como desatualizada", async () => {
+    mockLiveFetch();
+    const { unmount } = render(<App />);
+    await screen.findByRole("table", { name: /Pluviômetros/ });
+    await screen.findByRole("img", { name: /Chuva por hora/ });
+    unmount();
+
+    mockLiveFetch({ rain: failing, stations: failing });
+    render(<App />);
+    expect(await screen.findByRole("table", { name: /Pluviômetros/ })).toBeInTheDocument();
+    expect((await screen.findAllByText(/desatualizado/)).length).toBe(2);
+  });
+
+  it("Atualizar agora refaz as duas consultas", async () => {
+    const { fetchMock } = mockLiveFetch();
+    render(<App />);
+    await screen.findByRole("table", { name: /Pluviômetros/ });
+    await enterEditMode();
+
+    fetchMock.mockClear();
+    await userEvent.click(liveSection().getByRole("button", { name: "Atualizar agora" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+  });
+
+  it("os dados ao vivo entram na exportação e não atrapalham o desfazer", async () => {
+    mockLiveFetch();
+    render(<App />);
+    await screen.findByRole("table", { name: /Pluviômetros/ });
+    // Carregar dados não é uma alteração do usuário.
+    expect(button("DESFAZER")).toBeDisabled();
   });
 });
 

@@ -2,8 +2,7 @@ import { type KeyboardEvent, type PointerEvent, useRef } from "react";
 import { useEditor } from "../editor/context";
 import { clampFrame, DEFAULT_FRAME, frameTransform } from "../editor/frame";
 import { useOrientedImage } from "../editor/orient";
-import { pickFile } from "../editor/project";
-import { compressImage } from "../editor/storage";
+import { useImageUpload } from "../editor/useImageUpload";
 
 export default function ImagePlaceholder({
   id,
@@ -31,17 +30,7 @@ export default function ImagePlaceholder({
     height: number;
   } | null>(null);
 
-  const selectFile = () => {
-    if (!editMode) return;
-    pickFile("image/png,image/jpeg,image/webp", (file) => {
-      compressImage(file)
-        .then((dataUrl) => {
-          setImage(id, dataUrl);
-          setFrame(id); // foto nova começa sem enquadramento
-        })
-        .catch(() => window.alert("Não foi possível carregar a imagem."));
-    });
-  };
+  const selectFile = useImageUpload(id);
 
   const handleClick = () => {
     // Enquadrando, o clique não abre o seletor de arquivos.

@@ -29,6 +29,9 @@ jobs:
       - run: pnpm build
         env:
           FIGMA_PUBLIC_URL: .
+          # Opcional: endereço da função /api/cemaden publicada no Vercel
+          # (Settings > Variables > Actions > CEMADEN_URL).
+          VITE_CEMADEN_URL: ${{ vars.CEMADEN_URL }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

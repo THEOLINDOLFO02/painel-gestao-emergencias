@@ -34,6 +34,15 @@ react(),
       host: process.env.FIGMA_DEV_SERVER_HOST || '0.0.0.0',
       port: parseInt(process.env.PORT || '8443'),
       strictPort: true,
+      // Em desenvolvimento, /api/cemaden vai direto ao CEMADEN (no Vercel quem faz
+      // isso é api/cemaden.ts, que também filtra por município).
+      proxy: {
+        '/api/cemaden': {
+          target: 'https://resources.cemaden.gov.br',
+          changeOrigin: true,
+          rewrite: () => '/graficos/interativo/getJson2.php?uf=SP',
+        },
+      },
       watch: {
         ignored: [
           '**/.figma/**',

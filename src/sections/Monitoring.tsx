@@ -1,9 +1,18 @@
 import Draggable from "../components/Draggable";
 import EditableText from "../components/EditableText";
 import ImagePlaceholder from "../components/ImagePlaceholder";
+import LiveSlot, { type LiveKind } from "../components/live/LiveSlot";
 import PhaseLabel from "../components/PhaseLabel";
 
-const cards = [
+const cards: {
+  id: string;
+  number: string;
+  title: string;
+  label: string;
+  wide?: boolean;
+  /** Mostra dados ao vivo quando não há foto. */
+  live?: LiveKind;
+}[] = [
   {
     id: "monitor-map",
     number: "01",
@@ -22,12 +31,14 @@ const cards = [
     number: "03",
     title: "INDICADORES",
     label: "Gráfico de alertas",
+    live: "stations",
   },
   {
     id: "monitor-rain",
     number: "04",
     title: "PRECIPITAÇÃO",
     label: "Gráfico climático",
+    live: "rain",
   },
 ];
 
@@ -46,7 +57,11 @@ export default function Monitoring() {
                   <span className="card-number">{card.number}</span>
                   <EditableText>{card.title}</EditableText>
                 </div>
-                <ImagePlaceholder id={card.id} label={card.label} />
+                {card.live ? (
+                  <LiveSlot id={card.id} label={card.label} kind={card.live} />
+                ) : (
+                  <ImagePlaceholder id={card.id} label={card.label} />
+                )}
               </div>
             </Draggable>
           ))}

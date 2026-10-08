@@ -1,9 +1,28 @@
 import { expect, type Page } from "@playwright/test";
+import { cemadenResponse, rainResponse } from "../src/test/fixtures";
 
 export const tool = (page: Page, name: string) =>
   page.getByRole("button", { name, exact: true });
 
-export async function openPanel(page: Page) {
+/** Troca as duas fontes de dados ao vivo por respostas fixas (os testes não usam a internet). */
+export async function mockLiveData(
+  page: Page,
+  options: { rain?: "ok" | "fail"; stations?: "ok" | "fail" } = {},
+) {
+  await page.route("https://api.open-meteo.com/**", (route) =>
+    options.rain === "fail"
+      ? route.abort("failed")
+      : route.fulfill({ json: rainResponse(Date.now()) }),
+  );
+  await page.route("**/api/cemaden*", (route) =>
+    options.stations === "fail"
+      ? route.abort("failed")
+      : route.fulfill({ json: cemadenResponse(Date.now()) }),
+  );
+}
+
+export async function openPanel(page: Page, options: Parameters<typeof mockLiveData>[1] = {}) {
+  await mockLiveData(page, options);
   await page.goto("/");
   await expect(
     page.getByRole("heading", { level: 1, name: /GESTÃO DE EMERGÊNCIAS/ }),

@@ -1638,3 +1638,302 @@ button.tool-control:disabled {
   display: grid;
   gap: 6px;
 }
+
+/* ---------- Dados ao vivo (Precipitação e Indicadores) ---------- */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.live-slot {
+  position: relative;
+  display: flex;
+  min-height: 160px;
+  flex-direction: column;
+  border: 1px solid #263849;
+  border-radius: 6px;
+  background: #0d1924;
+  color: var(--text);
+}
+
+.live-card {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 9px;
+}
+
+.live-message {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  color: var(--muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.live-message strong {
+  color: var(--text);
+}
+
+.live-retry,
+.live-photo-button {
+  padding: 4px 8px;
+  border: 1px solid var(--line-bright);
+  border-radius: 4px;
+  background: #111e2a;
+  color: var(--text);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.live-retry:hover,
+.live-photo-button:hover {
+  border-color: var(--cyan);
+}
+
+.live-photo-button {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 4;
+  opacity: 0.92;
+}
+
+.live-source {
+  margin: auto 0 0;
+  color: #9db0be;
+  font-size: 9px;
+  letter-spacing: 0.02em;
+}
+
+.live-source a {
+  color: inherit;
+}
+
+.live-stale {
+  color: var(--orange-soft);
+}
+
+/* Chuva */
+.rain-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.rain-axis {
+  stroke: var(--line-bright);
+  stroke-width: 1;
+}
+
+.rain-tick {
+  fill: #9db0be;
+  font-size: 9px;
+}
+
+.rain-bar--past {
+  fill: var(--cyan);
+}
+
+.rain-bar--next {
+  fill: var(--orange);
+  opacity: 0.85;
+}
+
+.rain-now {
+  stroke: var(--text);
+  stroke-dasharray: 2 2;
+  stroke-width: 1;
+}
+
+.rain-legend {
+  display: flex;
+  gap: 10px;
+  color: #9db0be;
+  font-size: 9px;
+}
+
+.rain-key::before {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 4px;
+  border-radius: 2px;
+  content: "";
+}
+
+.rain-key--past::before {
+  background: var(--cyan);
+}
+
+.rain-key--next::before {
+  background: var(--orange);
+}
+
+.rain-summary {
+  display: flex;
+  margin: 0;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  color: #b7c5cf;
+  font-size: 10px;
+}
+
+.rain-summary strong {
+  color: var(--text);
+}
+
+.rain-days {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  grid-template-columns: repeat(auto-fit, minmax(48px, 1fr));
+  gap: 4px;
+  list-style: none;
+}
+
+.rain-day {
+  display: grid;
+  padding: 3px 4px;
+  border: 1px solid #263849;
+  border-radius: 4px;
+  font-size: 9px;
+  text-align: center;
+  text-transform: capitalize;
+}
+
+.rain-day strong {
+  color: var(--text);
+  font-size: 11px;
+}
+
+.rain-day--today {
+  border-color: var(--cyan);
+}
+
+/* Estações */
+.stations-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.stations-head > div {
+  display: grid;
+  min-width: 0;
+}
+
+.stations-kicker,
+.stations-where {
+  color: #9db0be;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+}
+
+.stations-peak {
+  font-size: 20px;
+  line-height: 1.1;
+}
+
+.stations-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10px;
+}
+
+.stations-table th,
+.stations-table td {
+  padding: 3px 3px;
+  border-bottom: 1px solid #1d2c3b;
+  text-align: right;
+  font-weight: 500;
+}
+
+.stations-table thead th {
+  color: #9db0be;
+  font-size: 9px;
+}
+
+.stations-table th:first-child {
+  text-align: left;
+}
+
+.stations-table tbody th {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.stations-table tbody th small {
+  display: block;
+  color: #9db0be;
+  font-size: 8px;
+  font-weight: 500;
+}
+
+.stations-foot {
+  margin: 0;
+  color: #b7c5cf;
+  font-size: 9px;
+}
+
+.level {
+  display: inline-block;
+  padding: 1px 5px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.level--normal {
+  color: #66d18f;
+}
+
+.level--attention {
+  color: #eacb3f;
+}
+
+.level--alert {
+  color: #ff7468;
+}
+
+.url-field {
+  display: grid;
+  gap: 4px;
+}
+
+.url-field input {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid var(--line-bright);
+  border-radius: 4px;
+  background: #111e2a;
+  color: var(--text);
+  font: inherit;
+}
+
+@media print {
+  .live-photo-button,
+  .live-retry {
+    display: none !important;
+  }
+}

@@ -16,7 +16,13 @@ if (!Blob.prototype.text) {
   };
 }
 
+// Nenhum teste fala com a internet: os dados ao vivo ficam "indisponíveis" a menos
+// que o teste coloque um fetch falso (veja src/test/liveFixtures.ts).
 beforeEach(() => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(() => Promise.reject(new Error("sem rede nos testes"))),
+  );
   window.localStorage.clear();
   window.indexedDB = new IDBFactory();
   document.documentElement.removeAttribute("style");
@@ -25,4 +31,5 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });

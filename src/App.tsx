@@ -23,6 +23,8 @@ import {
   readProjectFile,
   type ProjectData,
 } from "./editor/project";
+import { sanitizeSettings, type LiveSettings } from "./data/live";
+import { LiveContext, useLiveData } from "./data/useLiveData";
 import { loadStored, saveStored, STORAGE_KEYS } from "./editor/storage";
 import { useHistory } from "./editor/useHistory";
 import { useImages } from "./editor/useImages";
@@ -84,6 +86,10 @@ export default function App() {
   // Ajustes de foto copiados, prontos para colar em outra foto.
   const [copiedFrame, setCopiedFrame] = useState<Frame | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [liveSettings, setLiveSettings] = useState<LiveSettings>(() =>
+    sanitizeSettings(loadStored<unknown>(STORAGE_KEYS.live, {})),
+  );
+  const live = useLiveData(liveSettings);
   const [selectedShape, setSelectedShape] = useState<string | null>(null);
   const [selectedBlock, setSelectedBlock] = useState<string | null>(null);
 
@@ -101,6 +107,7 @@ export default function App() {
   usePersist(STORAGE_KEYS.sizes, sizes);
   usePersist(STORAGE_KEYS.frames, frames);
   usePersist(STORAGE_KEYS.stacks, stacks);
+  usePersist(STORAGE_KEYS.live, liveSettings);
 
   // ---- Projeto (tudo o que o usuário pode alterar) ----
   const project: ProjectData = {
@@ -344,6 +351,7 @@ export default function App() {
 
   return (
     <EditorContext.Provider value={editor}>
+      <LiveContext.Provider value={live}>
       <main
         className="dashboard-shell"
         onPointerDown={(event) => {
@@ -510,6 +518,10 @@ export default function App() {
                 copyFrame(copiedFrame, frames[selectedImage], includePosition),
               )
             }
+            live={live}
+            onLiveSettings={(patch) =>
+              setLiveSettings((current) => sanitizeSettings({ ...current, ...patch }))
+            }
             onFrameApplyAll={(includePosition) => {
               if (!selectedImage) return;
               const source = frames[selectedImage] ?? DEFAULT_FRAME;
@@ -533,6 +545,7 @@ export default function App() {
           />
         )}
       </main>
+      </LiveContext.Provider>
     </EditorContext.Provider>
   );
 }

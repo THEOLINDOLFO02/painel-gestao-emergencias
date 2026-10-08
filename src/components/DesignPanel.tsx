@@ -20,6 +20,8 @@ import {
   type StackOp,
 } from "../editor/shapes";
 import { type BlockStyle, FONT_OPTIONS, type Theme } from "../editor/theme";
+import { formatClock, type LiveSettings } from "../data/live";
+import type { Live } from "../data/useLiveData";
 
 const hint = { color: "var(--muted)" } as const;
 
@@ -154,6 +156,9 @@ export type DesignPanelProps = {
   onFrameCopy: () => void;
   onFramePaste: (includePosition: boolean) => void;
   onFrameApplyAll: (includePosition: boolean) => void;
+
+  live: Live;
+  onLiveSettings: (patch: Partial<LiveSettings>) => void;
 };
 
 const COLOR_FIELDS = [
@@ -316,6 +321,8 @@ export default function DesignPanel(props: DesignPanelProps) {
               Restaurar tema
             </button>
           </Section>
+
+          <LiveSection live={props.live} onChange={props.onLiveSettings} />
 
           <Section title="BLOCO SELECIONADO">
             {props.blockLabel ? (
@@ -587,6 +594,78 @@ export default function DesignPanel(props: DesignPanelProps) {
         </>
       )}
     </aside>
+  );
+}
+
+function LiveSection({
+  live,
+  onChange,
+}: {
+  live: Live;
+  onChange: (patch: Partial<LiveSettings>) => void;
+}) {
+  const { settings } = live;
+  const stamp = (fetchedAt: number | null, error: boolean) =>
+    fetchedAt
+      ? `atualizado às ${formatClock(new Date(fetchedAt).toISOString())}${error ? " (última tentativa falhou)" : ""}`
+      : error
+        ? "indisponível"
+        : "aguardando";
+  return (
+    <Section title="DADOS AO VIVO">
+      <label>
+        Mostrar nos cartões
+        <input
+          type="checkbox"
+          aria-label="Mostrar dados ao vivo nos cartões"
+          checked={settings.enabled}
+          onChange={(event) => onChange({ enabled: event.target.checked })}
+        />
+      </label>
+      <span style={hint}>
+        Precipitação e Indicadores mostram dados reais quando não há foto neles.
+      </span>
+      {settings.enabled && (
+        <>
+          <div className="number-grid">
+            <NumberField
+              label="Atenção (mm/24 h)"
+              value={settings.attention24}
+              min={1}
+              onChange={(attention24) => onChange({ attention24 })}
+            />
+            <NumberField
+              label="Alerta (mm/24 h)"
+              value={settings.alert24}
+              min={1}
+              onChange={(alert24) => onChange({ alert24 })}
+            />
+          </div>
+          <span style={hint}>
+            Faixas de exemplo: ajuste ao protocolo da Defesa Civil.
+          </span>
+          <label className="url-field">
+            Serviço CEMADEN
+            <input
+              type="text"
+              value={settings.cemadenUrl}
+              onChange={(event) => onChange({ cemadenUrl: event.target.value })}
+            />
+          </label>
+          <span style={hint}>
+            Chuva (Open-Meteo): {stamp(live.rain.fetchedAt, live.rain.error)}.
+            <br />
+            Estações (CEMADEN): {stamp(live.stations.fetchedAt, live.stations.error)}.
+          </span>
+          <button className="panel-button" disabled={live.loading} onClick={live.refresh}>
+            {live.loading ? "Atualizando…" : "Atualizar agora"}
+          </button>
+          <span style={hint}>
+            Open-Meteo: uso não comercial (CC-BY). Dados do CEMADEN/MCTI.
+          </span>
+        </>
+      )}
+    </Section>
   );
 }
 

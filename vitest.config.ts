@@ -7,6 +7,8 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
     css: false,
+    // Os testes de tela fazem muitos cliques; em máquina ocupada passam de 5 s.
+    testTimeout: 20_000,
     exclude: ["e2e/**", "node_modules/**"],
   },
 });

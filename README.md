@@ -23,6 +23,33 @@ outra foto ou para todas.
 As edições ficam no navegador (localStorage e IndexedDB) e não são compartilhadas
 entre pessoas ou computadores — para isso, use o arquivo `.json`.
 
+## Dados ao vivo (Precipitação e Indicadores)
+
+Os cartões **Precipitação** e **Indicadores** mostram dados reais quando não há foto neles
+(a foto sempre tem prioridade; em edição, **USAR FOTO NO LUGAR** troca os dados por uma foto).
+
+- **Precipitação:** chuva por hora (últimas 24 h estimadas e próximas 48 h previstas) e total
+  por dia, pelo [Open-Meteo](https://open-meteo.com/) (CC-BY, **uso não comercial**; confirme
+  se o uso pela prefeitura se enquadra ou contrate o plano pago).
+- **Indicadores:** pluviômetros do CEMADEN em Cajamar e municípios vizinhos, com acumulados de
+  24 h e 72 h e nível (Normal/Atenção/Alerta). As faixas de alerta são **valores de exemplo**:
+  ajuste em *Dados ao vivo* conforme o protocolo da Defesa Civil.
+- Atualiza a cada 10 minutos; sem internet, mostra a última resposta marcada como
+  "desatualizado". Dá para desligar em *Dados ao vivo* (cada pessoa, no próprio navegador).
+
+**Serviço do CEMADEN.** O JSON do CEMADEN (o mesmo do mapa interativo, **não é uma API
+documentada** e pode mudar) não aceita chamadas direto do navegador. Por isso existe
+`api/cemaden.ts`, uma função do Vercel que busca, filtra e guarda em cache por 5 minutos.
+
+- No **Vercel**, o site e a função ficam juntos e nada precisa ser configurado.
+- Em **desenvolvimento** (`pnpm dev`), o Vite repassa `/api/cemaden` direto ao CEMADEN.
+- No **GitHub Pages** não há função: defina a variável de repositório `CEMADEN_URL`
+  (Settings > Secrets and variables > Actions > Variables) com o endereço publicado no Vercel,
+  por exemplo `https://SEU-PROJETO.vercel.app/api/cemaden`, ou preencha o campo *Serviço CEMADEN*
+  em *Dados ao vivo*. Sem isso, o cartão mostra "Estações do CEMADEN indisponíveis".
+
+Os testes nunca usam a internet: as duas fontes são simuladas (`src/test/fixtures.ts`).
+
 ## Publicar (site estático)
 
 ```bash

@@ -1,6 +1,8 @@
+import { execFileSync } from "node:child_process";
 import { describe, expect, it, vi } from "vitest";
+import { AREA_IBGE, CEMADEN_SOURCE_URL } from "../src/data/cemadenCore";
 import { cemadenResponse } from "../src/test/fixtures";
-import handler from "./cemaden";
+import handler, { DEFAULT_IBGE, SOURCE_URL } from "./cemaden";
 
 function call(url: string, method = "GET") {
   const headers: Record<string, string> = {};
@@ -80,5 +82,29 @@ describe("função /api/cemaden", () => {
     const { statusCode, body } = await call("/api/cemaden");
     expect(statusCode).toBe(200);
     expect(body).toEqual([]);
+  });
+});
+
+describe("função /api/cemaden: implantação", () => {
+  it("usa a mesma fonte e os mesmos municípios da tela", () => {
+    expect(SOURCE_URL).toBe(CEMADEN_SOURCE_URL);
+    expect([...DEFAULT_IBGE].sort()).toEqual(Object.keys(AREA_IBGE).map(Number).sort());
+  });
+
+  it("carrega como módulo ESM puro do Node (sem import relativo sem extensão)", () => {
+    // O projeto é "type": "module": no Vercel, um import como "../src/x" sem extensão
+    // derrubava a função (FUNCTION_INVOCATION_FAILED). Aqui carregamos o arquivo
+    // como o Node carrega, fora do Vite, que perdoaria o erro.
+    const output = execFileSync(
+      process.execPath,
+      [
+        "--experimental-strip-types",
+        "--no-warnings",
+        "-e",
+        "import('./api/cemaden.ts').then((m) => console.log(typeof m.default))",
+      ],
+      { cwd: process.cwd(), encoding: "utf8" },
+    );
+    expect(output.trim()).toBe("function");
   });
 });

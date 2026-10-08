@@ -1,13 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { cemadenResponse, rainResponse } from "../test/fixtures";
-import {
-  AREA_IBGE,
-  filterRawByIbge,
-  normalizeStations,
-  parseCemadenDate,
-  parseIbgeParam,
-  parseNumber,
-} from "./cemadenCore";
+import { normalizeStations, parseCemadenDate, parseNumber } from "./cemadenCore";
 import {
   classify,
   DEFAULT_LIVE_SETTINGS,
@@ -52,21 +45,6 @@ describe("CEMADEN: leitura dos valores", () => {
     expect(ponunduva.acc.h24).toBe(2.4);
     expect(ponunduva.acc.h1).toBeNull(); // "-" vira null
     expect(normalizeStations({ não: "é lista" })).toEqual([]);
-  });
-
-  it("filtra o JSON bruto pelos municípios pedidos", () => {
-    const raw = cemadenResponse(NOW);
-    const result = filterRawByIbge(raw, [3509205]) as { cidade: string }[];
-    expect(result.map((r) => r.cidade)).toEqual(["CAJAMAR", "CAJAMAR"]);
-    expect(filterRawByIbge("lixo", [3509205])).toEqual([]);
-  });
-
-  it("valida o parâmetro ibge", () => {
-    expect(parseIbgeParam(null)).toEqual(Object.keys(AREA_IBGE).map(Number));
-    expect(parseIbgeParam("3509205,3547304")).toEqual([3509205, 3547304]);
-    expect(parseIbgeParam("123")).toBeNull();
-    expect(parseIbgeParam("3509205;drop")).toBeNull();
-    expect(parseIbgeParam(Array(21).fill("3509205").join(","))).toBeNull();
   });
 });
 

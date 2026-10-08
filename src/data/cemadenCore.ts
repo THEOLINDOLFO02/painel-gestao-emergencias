@@ -1,4 +1,5 @@
-// Lógica do CEMADEN sem dependência de navegador: serve à tela e à função do Vercel.
+// Lógica do CEMADEN usada pela tela. (A função do Vercel, em api/cemaden.ts, é
+// autocontida de propósito; um teste confere que as duas listas de municípios batem.)
 
 /** Endereço do JSON usado pelo mapa interativo do CEMADEN (não é uma API documentada). */
 export const CEMADEN_SOURCE_URL =
@@ -100,27 +101,4 @@ export function normalizeStations(raw: unknown): Station[] {
     });
   }
   return stations;
-}
-
-/** Mantém só os registros brutos dos municípios pedidos (resposta da função do Vercel). */
-export function filterRawByIbge(raw: unknown, ibgeCodes: number[]): unknown[] {
-  if (!Array.isArray(raw)) return [];
-  const wanted = new Set(ibgeCodes);
-  return raw.filter((item) => {
-    const code = isRecord(item) ? parseNumber(item.codibge) : null;
-    return code !== null && wanted.has(code);
-  });
-}
-
-/** Lê "?ibge=1,2,3" com no máximo 20 códigos de 7 dígitos; inválido vira null. */
-export function parseIbgeParam(value: string | null | undefined): number[] | null {
-  if (!value) return Object.keys(AREA_IBGE).map(Number);
-  const parts = value.split(",");
-  if (parts.length > 20) return null;
-  const codes: number[] = [];
-  for (const part of parts) {
-    if (!/^\d{7}$/.test(part)) return null;
-    codes.push(Number(part));
-  }
-  return codes;
 }
